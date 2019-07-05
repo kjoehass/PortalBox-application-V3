@@ -1,0 +1,4 @@
+configparser
+mysql-connector
+RPi.GPIO
+spi

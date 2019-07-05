@@ -1,0 +1,25 @@
+#
+# .gitignore file
+#
+# This file ensures that certain files are not included in the git repository
+#
+
+# exclude python runtime caches
+*.pyc
+
+# exclude configuration
+config.ini
+
+# exclude python virtual environment
+bin
+include
+lib
+lib64
+share
+pyvenv.config
+
+# exclude pip temp files
+pip-selfcheck.json
+
+# exclude editor temp files
+.vscode
