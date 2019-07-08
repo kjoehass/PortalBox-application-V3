@@ -6,6 +6,9 @@ Portal Box is the access control system used in Makerspaces at Bucknell Universi
 ### Note on Conventions
 In some shell commands you may need to provide values left up to you. These values are denoted using the semi-standard shell variable syntax e.g. ${NAME_OF_DATA} 
 
+## License
+This project is licensed under the Apache 2.0 License - see the LICENSE file for details
+
 ## Dependancies
 A MySQL or compatible (MariaDB) database loaded with the appropriate schema
 Systemd based Linux, tested with Raspbian Stretch and Buster
@@ -99,20 +102,3 @@ sudo systemctl enable portal-box.service
 - Starting the service with an invalid config file or and invalid path to a config file fails in odd ways. This should be cleaned up.
 - Email messages are hard coded in well code, templates should be used
 	- should be able to configure the location of email template files
-
-## Credits
-Portal box is built on the efforts to Bucknell Staff and Students including:
-
-Julie Darwin
-Ian Hunter Wallace
-Daniel Jin guk Park
-Joseph Kale
-Andrew Sellers
-Zach Winters
-Christian Ouellette
-Keller Chambers
-Owen Meng
-Ryder Nance
-Jacquelyn Scott
-Jack Lukens
-Evan Harrington
