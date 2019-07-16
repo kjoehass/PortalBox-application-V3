@@ -1,4 +1,4 @@
 configparser
 mysql-connector
 RPi.GPIO
-spi
+spi>=0.2.0

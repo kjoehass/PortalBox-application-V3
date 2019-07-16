@@ -107,7 +107,7 @@ class MFRC522:
   Reserved34      = 0x3F
   
   def __init__(self, dev='/dev/spidev0.0', spd=1000000):
-    self.spi_handle = spi.openSPI(device=dev,speed=spd)
+    self.spi_handle = spi.SPI(device=dev,speed=spd)
     self.MFRC522_Reset();
     
     self.Write_MFRC522(self.TModeReg, 0x8D)
@@ -123,10 +123,10 @@ class MFRC522:
     self.Write_MFRC522(self.CommandReg, self.PCD_RESETPHASE)
   
   def Write_MFRC522(self, addr, val):
-    spi.transfer(self.spi_handle, ((addr<<1)&0x7E,val))
+    self.spi_handle.write(((addr<<1)&0x7E,val))
   
   def Read_MFRC522(self, addr):
-    val = spi.transfer(self.spi_handle, (((addr<<1)&0x7E) | 0x80,0))
+    val = self.spi_handle.transfer((((addr<<1)&0x7E) | 0x80,0))
     return val[1]
   
   def SetBitMask(self, reg, mask):
