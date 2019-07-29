@@ -39,6 +39,7 @@ class Database:
         Reestablish a connection to the database. Useful if the connection
         timed out
         '''
+        logging.debug("Attempting to reconnect to database")
         # allow exceptions to bubble out
         self._connection = mysql.connector.connect(**self._settings)
 
@@ -104,6 +105,7 @@ class Database:
         (str)location, (int)time limit in minutes
         '''
         profile = (-1, -1, None, -1, None, -1)
+        logging.debug("Querying database for equipment profile")
 
         try:
             if not self._connection.is_connected():
@@ -121,6 +123,9 @@ class Database:
             if 0 < cursor.rowcount:
                 # Interpret result
                 profile = cursor.fetchone()
+                logging.debug("Fetched equipment profile")
+            else:
+                logging.debug("Failed to fetch equipment profile")
             cursor.close()
         except mysql.connector.Error as err:
             logging.error("{}".format(err))
@@ -142,8 +147,8 @@ class Database:
 
             query = ("CALL log_access_attempt(%s, %s, %s)")
             cursor = self._connection.cursor()
-
             cursor.execute(query, (successful, card_id, equipment_id))
+
             # No check for success?
             self._connection.commit()
             cursor.close()
@@ -162,7 +167,7 @@ class Database:
         try:
             if not self._connection.is_connected():
                 self.reconnect()
-        
+
             query = ("CALL log_access_completion(%s, %s)")
             cursor = self._connection.cursor()
 

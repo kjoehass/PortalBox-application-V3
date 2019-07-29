@@ -25,7 +25,7 @@ RED = Color(0, 255, 0)
 GREEN = Color(255, 0, 0)
 YELLOW = Color(255, 255, 0)
 BLUE = Color(0, 0, 255)
-ORANGE = Color(30, 255, 0)
+ORANGE = Color(30, 225, 0)
 
 class PortalBoxApplication:
     '''
@@ -38,7 +38,7 @@ class PortalBoxApplication:
         so signal handlers can be configured in __main__
         '''
         self.exceeded_time = False
-        self.running = True
+        self.running = False
         self.box = PortalBox()
         self.settings = settings
 
@@ -58,16 +58,29 @@ class PortalBoxApplication:
         logging.debug("Discovered Mac Address: %s", mac_address)
 
         # connect to backend database
-        self.db = Database(self.settings['db'])
+        logging.debug("Connecting to database on host %s", self.settings['db']['host'])
+        try:
+            self.db = Database(self.settings['db'])
+            logging.debug("Connected to Database")
+        except Exception as e:
+            logging.error("{}".format(e))
+            sys.exit(1)
 
         # be prepared to send emails
-        self.emailer = Emailer(self.settings['email'])
+        try:
+            self.emailer = Emailer(self.settings['email'])
+            logging.debug("Cached email settings")
+        except Exception as e:
+            # should be unreachable
+            logging.error("{}".format(e))
+            sys.exit(1)
 
         # give user hint we are makeing progress 
         self.box.set_display_color_wipe(ORANGE, 10)
 
         # determine what we are
         profile = (-1,)
+        self.running = False
         while self.running and 0 > profile[0]:
             profile = self.db.get_equipment_profile(mac_address)
             if 0 > profile[0]:
@@ -357,7 +370,11 @@ class PortalBoxApplication:
     def exit(self):
         ''' Stop looping in all run states '''
         logging.info("Service Exiting")
-        self.running = False
+        if self.running:
+            self.running = False
+        else:
+            # never made it to the run state
+            sys.exit()
 
 
     def handle_interupt(self, signum, frame):
