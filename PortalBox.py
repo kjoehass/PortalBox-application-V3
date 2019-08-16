@@ -150,6 +150,7 @@ class PortalBox:
             return -1
         return -1
 
+
     def wake_display(self):
         self.sleepMode = False
 
@@ -171,7 +172,10 @@ class PortalBox:
                 if self.sleepMode:
                     for i in range(self.strip.numPixels()):
                         self.strip.setPixelColor(i, wheel(((i * 256 / self.strip.numPixels()) + j) & 255))
-                    self.strip.show()
+                    try:
+                        self.strip.show()
+                    except RuntimeError as e:
+                        logging.error("{}".format(e))
                     sleep(wait_ms/1000.0)
                 else:
                     break
@@ -186,7 +190,10 @@ class PortalBox:
         self.sleepMode = False
         for i in range(self.strip.numPixels()):
             self.strip.setPixelColor(i, color)
-        self.strip.show()
+        try:
+            self.strip.show()
+        except RuntimeError as e:
+            logging.error("{}".format(e))
 
 
     def set_display_color_wipe(self, color, speed):
@@ -196,10 +203,17 @@ class PortalBox:
         @param (int) speed -  how fast to wipe in color, one pixel every n ms
         '''
         self.sleepMode = False
-        for i in range(self.strip.numPixels()):
+        num_pixels = self.strip.numPixels()
+        delay = speed/1000.0
+        logging.debug("Color wipe @ one pixel every %s s", delay)
+        for i in range(num_pixels):
+            logging.debug("Updated color of pixel %d of %d", i, num_pixels)
             self.strip.setPixelColor(i, color)
-            self.strip.show()
-            sleep(speed/1000.0)
+            try:
+                self.strip.show()
+            except RuntimeError as e:
+                logging.error("{}".format(e))
+            sleep(delay)
 
 
     def flash_display(self, color, wait_ms=150, flashes=5):
@@ -209,11 +223,17 @@ class PortalBox:
         for j in range(flashes):
             for i in range(num_pixels):
                 self.strip.setPixelColor(i, color)
-            self.strip.show()
+            try:
+                self.strip.show()
+            except RuntimeError as e:
+                logging.error("{}".format(e))
             sleep(wait_ms/1000.0)
             for i in range(num_pixels):
                 self.strip.setPixelColor(i, Color(0,0,0))
-            self.strip.show()
+            try:
+                self.strip.show()
+            except RuntimeError as e:
+                logging.error("{}".format(e))
             sleep(wait_ms/1000.0)
 
 
