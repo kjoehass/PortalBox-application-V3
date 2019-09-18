@@ -23,46 +23,97 @@ class Database:
 
         @param (dict)settings - a dictionary describing the database to connect to
         '''
-        self._settings = settings
-        self._connection = mysql.connector.connect(**settings)
+        self.use_persistent_connection = True
+        self._connection = None
+
+        # insure a minimum configuration
+        if (not 'user' in settings or not 'password' in settings or
+                not 'host' in settings or not 'database' in settings):
+            raise ValueError("Database configuration must at a minimum include the 'user', 'password', 'host' and 'database' keys")
+
+        # build new settings object to filter out keys we don't want going to mysql.connector
+        self.connection_settings = {
+            'user': settings['user'],
+            'password': settings['password'],
+            'host': settings['host'],
+            'database': settings['database'],
+        }
+
+        # Add in the optional keys
+        if 'port' in settings:
+            self.connection_settings['port'] = settings['port']
+
+        if 'persistent' in settings:
+            # check if persistent is really set to no/False
+            self.use_persistent_connection = False
+
+        logging.debug("DB Connection Settings: %s", self.connection_settings)
+
+        if self.use_persistent_connection:
+            self._connection = mysql.connector.connect(**self.connection_settings)
+            if self._connection:
+                logging.debug("Initialized persistent DB connection")
+            else:
+                logging.error("Failed to initialize persistent connection")
 
 
-    def close(self):
+    def __del__(self):
         '''
         Closes the encapsulated database connection
         '''
-        self._connection.close()
+        if self._connection:
+            self._connection.close()
 
 
-    def reconnect(self):
+    def _reconnect(self):
         '''
         Reestablish a connection to the database. Useful if the connection
         timed out
         '''
         logging.debug("Attempting to reconnect to database")
-        # allow exceptions to bubble out
-        self._connection = mysql.connector.connect(**self._settings)
+
+        self._connection = self._connect()
+
+        return self._connection
+
+
+    def _connect(self):
+        '''
+        Establish a connection to the database
+        '''
+        logging.debug("Attempting to connect to database")
+
+        return mysql.connector.connect(**self.connection_settings)
 
 
     def is_registered(self, mac_address):
         '''
         Determine if the portal box identified by the MAC address has been
         registered with the database
+
+        @param (string)mac_address - the mac_address of the portal box to
+             check registration status of
         '''
         registered = False
+        connection = self._connection
 
         try:
-            if not self._connection.is_connected():
-                self.reconnect()
+            if self.use_persistent_connection:
+                if not connection.is_connected():
+                    connection = self._reconnect()
+            else:
+                connection = self._connect()
 
             # Send query
             query = ("SELECT count(id) FROM equipment WHERE mac_address = %s")
-            cursor = self._connection.cursor()
+            cursor = connection.cursor()
             cursor.execute(query, (mac_address,))
 
             # Interpret result
             (registered,) = cursor.fetchone()
             cursor.close()
+            if not self.use_persistent_connection:
+                connection.close()
         except mysql.connector.Error as err:
             logging.error("{}".format(err))
 
@@ -75,21 +126,27 @@ class Database:
         as an out of service device
         '''
         success = False
+        connection = self._connection
 
         try:
-            if not self._connection.is_connected():
-                self.reconnect()
+            if self.use_persistent_connection:
+                if not connection.is_connected():
+                    connection = self._reconnect()
+            else:
+                connection = self._connect()
 
             # Send query
             query = ("INSERT INTO equipment (name, type_id, mac_address, location_id) VALUES ('New Portal Box', 1, %s, 1)")
-            cursor = self._connection.cursor()
+            cursor = connection.cursor()
             cursor.execute(query, (mac_address,))
 
             if 1 == cursor.rowcount:
                 success = True
 
-            self._connection.commit()
+            connection.commit()
             cursor.close()
+            if not self.use_persistent_connection:
+                connection.close()
         except mysql.connector.Error as err:
             logging.error("{}".format(err))
 
@@ -104,12 +161,17 @@ class Database:
         (int)equipment type id, (str)equipment type, (int)location id,
         (str)location, (int)time limit in minutes
         '''
-        profile = (-1, -1, None, -1, None, -1)
         logging.debug("Querying database for equipment profile")
 
+        profile = (-1, -1, None, -1, None, -1)
+        connection = self._connection
+
         try:
-            if not self._connection.is_connected():
-                self.reconnect()
+            if self.use_persistent_connection:
+                if not connection.is_connected():
+                    connection = self._reconnect()
+            else:
+                connection = self._connect()
 
             # Query MySQL for RID by sending MAC Address
             query = ("SELECT e.id, e.type_id, t.name, e.location_id, l.name, e.timeout "
@@ -117,7 +179,7 @@ class Database:
                 "INNER JOIN equipment_types AS t ON e.type_id = t.id "
                 "INNER JOIN locations AS l ON e.location_id =  l.id "
                 "WHERE e.mac_address = %s")
-            cursor = self._connection.cursor(buffered = True) # we want rowcount to be available
+            cursor = connection.cursor(buffered = True) # we want rowcount to be available
             cursor.execute(query, (mac_address,))
 
             if 0 < cursor.rowcount:
@@ -127,6 +189,8 @@ class Database:
             else:
                 logging.debug("Failed to fetch equipment profile")
             cursor.close()
+            if not self.use_persistent_connection:
+                connection.close()
         except mysql.connector.Error as err:
             logging.error("{}".format(err))
 
@@ -141,17 +205,24 @@ class Database:
         @param equipment_id: The ID assigned to the portal box
         @param successful: If login was successful (user is authorized)
         '''
+        connection = self._connection
+
         try:
-            if not self._connection.is_connected():
-                self.reconnect()
+            if self.use_persistent_connection:
+                if not connection.is_connected():
+                    connection = self._reconnect()
+            else:
+                connection = self._connect()
 
             query = ("CALL log_access_attempt(%s, %s, %s)")
-            cursor = self._connection.cursor()
+            cursor = connection.cursor()
             cursor.execute(query, (successful, card_id, equipment_id))
 
             # No check for success?
-            self._connection.commit()
+            connection.commit()
             cursor.close()
+            if not self.use_persistent_connection:
+                connection.close()
         except mysql.connector.Error as err:
             logging.error("{}".format(err))
 
@@ -164,16 +235,23 @@ class Database:
         @param equipment_id: The ID assigned to the portal box
         @param successful: If login was successful (user is authorized)
         '''
+        connection = self._connection
+
         try:
-            if not self._connection.is_connected():
-                self.reconnect()
+            if self.use_persistent_connection:
+                if not connection.is_connected():
+                    connection = self._reconnect()
+            else:
+                connection = self._connect()
 
             query = ("CALL log_access_completion(%s, %s)")
-            cursor = self._connection.cursor()
+            cursor = connection.cursor()
 
             cursor.execute(query, (card_id, equipment_id))
-            self._connection.commit()
+            connection.commit()
             cursor.close()
+            if not self.use_persistent_connection:
+                connection.close()
         except mysql.connector.Error as err:
             logging.error("{}".format(err))
 
@@ -184,13 +262,17 @@ class Database:
         equipment type identified by equipment_type_id
         '''
         is_authorized = False
+        connection = self._connection
 
         try:
-            if not self._connection.is_connected():
-                self.reconnect()
+            if self.use_persistent_connection:
+                if not connection.is_connected():
+                    connection = self._reconnect()
+            else:
+                connection = self._connect()
 
             query = ("SELECT requires_training, charge_policy_id > 2 FROM equipment_types WHERE id = %s")
-            cursor = self._connection.cursor()
+            cursor = connection.cursor()
             cursor.execute(query, (equipment_type_id,))
             
             (requires_training,requires_payment) = cursor.fetchone()
@@ -229,6 +311,8 @@ class Database:
                 is_authorized = True           
 
             cursor.close()
+            if not self.use_persistent_connection:
+                connection.close()
         except mysql.connector.Error as err:
             logging.error("{}".format(err))
 
@@ -243,19 +327,25 @@ class Database:
             proxy card, 3 for training card, and 4 for user card 
         '''
         type_id = -1
+        connection = self._connection
 
         try:
-            if not self._connection.is_connected():
-                self.reconnect()
+            if self.use_persistent_connection:
+                if not connection.is_connected():
+                    connection = self._reconnect()
+            else:
+                connection = self._connect()
 
             query = ("SELECT type_id FROM cards WHERE id = %s")
 
-            cursor = self._connection.cursor(buffered = True) # we want rowcount to be available
+            cursor = connection.cursor(buffered = True) # we want rowcount to be available
             cursor.execute(query, (id,))
 
             if 0 < cursor.rowcount:
                 (type_id,) = cursor.fetchone()
             cursor.close()
+            if not self.use_persistent_connection:
+                connection.close()
         except mysql.connector.Error as err:
             logging.error("{}".format(err))
 
@@ -268,20 +358,26 @@ class Database:
         training card for equipment of type specified by type_id
         '''
         valid = False
+        connection = self._connection
 
         try:
-            if not self._connection.is_connected():
-                self.reconnect()
+            if self.use_persistent_connection:
+                if not connection.is_connected():
+                    connection = self._reconnect()
+            else:
+                connection = self._connect()
 
             # Send query
             query = ("SELECT count(id) FROM equipment_type_x_cards "
                 "WHERE card_id = %s AND equipment_type_id = %s")
-            cursor = self._connection.cursor()
+            cursor = connection.cursor()
             cursor.execute(query, (id,type_id))
 
             # Interpret result
             (valid,) = cursor.fetchone()
             cursor.close()
+            if not self.use_persistent_connection:
+                connection.close()
         except mysql.connector.Error as err:
             logging.error("{}".format(err))
 
@@ -295,172 +391,26 @@ class Database:
         @return, a tuple of name and email
         '''
         user = (None, None)
+        connection = self._connection
+
         try:
-            if not self._connection.is_connected():
-                self.reconnect()
+            if self.use_persistent_connection:
+                if not connection.is_connected():
+                    connection = self._reconnect()
+            else:
+                connection = self._connect()
 
             query = ("SELECT u.name, u.email FROM users_x_cards AS c "
                 "JOIN users AS u ON u.id = c.user_id WHERE c.card_id = %s")
 
-            cursor = self._connection.cursor()
+            cursor = connection.cursor()
             cursor.execute(query, (id,))
 
             user = cursor.fetchone()
             cursor.close()
+            if not self.use_persistent_connection:
+                connection.close()
         except mysql.connector.Error as err:
             logging.error("{}".format(err))
 
         return user
-
-
-# Rest of this file is the test suite. Use `python3 Database.py` to run
-# check prevents running of test suite if loading (import) as a module
-if __name__ == "__main__":
-    # standard library
-    import configparser
-    from time import sleep
-    from uuid import getnode as get_mac_address
-
-    # Init logging
-    logging.basicConfig(format='%(message)s', level=logging.DEBUG)
-
-    # Read our Configuration
-    settings = configparser.ConfigParser()
-    settings.read('config.ini')
-
-    # connect to backend database
-    db = Database(settings['db'])
-
-    # test is_registered
-    logging.info("Database.is_registered test")
-    mac_address = format(get_mac_address(), 'x') # this machine
-
-    registered = db.is_registered(mac_address)
-    if registered:
-        logging.info("\tThis machine, MAC: %s is registered with the database", mac_address)
-        logging.info("\tTo test register rerun this test on a PC not registered with the database")
-    else:
-        logging.info("\tThis machine, MAC: %s is not registered with the database", mac_address)
-        # we can test register because we have a MAC address that is not registered
-        # test Database register
-        logging.info("Database.register test")
-        success = db.register(mac_address)
-
-        if success:
-            logging.info("\tThis machine, MAC: %s was registered with the database", mac_address)
-        else:
-            logging.info("\tThis machine, MAC: %s could not be registered with the database", mac_address)
-
-    # test get_equipment_profile
-    logging.info("Database.get_resource_profile test")
-    (equipment_id, type_id, type, location_id, location, time_limit) = db.get_equipment_profile(mac_address)
-    logging.info("\t Portal Box %s has role type:%s(%s) location:%s(%s) time limit:%s", equipment_id, type, type_id, location, location_id, time_limit)
-
-    # test get_card
-    logging.info("Database.get_card_type")
-    #-1 for card not found, 1 for shutdown card, 2 for proxy card, 3 for training card, and 4 for user card
-    # no card with id 0 should exist in the database
-    logging.info("\tTesting for card that should not exist")
-    type = db.get_card_type(0)
-    if -1 == type:
-        logging.info("\t[Success] card was not found in the database")
-    else:
-        logging.info("\t[Fail] nonexistant card found in db.get_card_type returned: %s", type)
-
-    # card 550014053 is a shutdown card in the test database
-    logging.info("\tTesting for shutdown card")
-    type = db.get_card_type(550014053)
-    if 1 == type:
-        logging.info("\t[Success] shutdown card was found in the database")
-    else:
-        logging.info("\t[Fail] shutdown card was not found in db.get_card_type returned: %s", type)
-    
-    # card 2232841801 is a proxy card in the test database
-    logging.info("\tTesting for proxy card")
-    type = db.get_card_type(2232841801)
-    if 2 == type:
-        logging.info("\t[Success] proxy card was found in the database")
-    else:
-        logging.info("\t[Fail] proxy card was not found in db.get_card_type returned: %s", type)
-
-    # card 1709165641 is a training card in the test database
-    logging.info("\tTesting for training card")
-    type = db.get_card_type(1709165641)
-    if 3 == type:
-        logging.info("\t[Success] training card was found in the database")
-    else:
-        logging.info("\t[Fail] training card was not found in db. get_card_type returned: %s", type)
-    
-    # card 1626651146 is a user card in the test database
-    logging.info("\tTesting for user card")
-    type = db.get_card_type(1626651146)
-    if 4 == type:
-        logging.info("\t[Success] user card was found in the database")
-    else:
-        logging.info("\t[Fail] user card was not found in db. get_card_type returned: %s", type)
-
-    logging.info("Database.is_training_card_for_equipment_type")
-    valid = db.is_training_card_for_equipment_type(1709165641, 2)
-    if valid:
-        logging.info("\t[Fail] 1709165641 is a training card for equipment type: 2 but it should not be")
-    else:
-        logging.info("\t[Success] 1709165641 is not a training card for equipment type: 2")
-
-    valid = db.is_training_card_for_equipment_type(1709165641, 9)
-    if valid:
-        logging.info("\t[Success] 1709165641 is a training card for equipment type: 9")
-    else:
-        logging.info("\t[Fail] 1709165641 is not a training card for equipment type: 9 but it should be")
-
-    logging.info("Database.is_user_authorized_for_equipment_type")
-    valid = db.is_user_authorized_for_equipment_type(1626651146, 2)
-    # not trained
-    if valid:
-        logging.info("\t[Fail] The user identified by card: 1626651146 is authorized for equipment type: 2 but should not be")
-    else:
-        logging.info("\t[Success] The user identified by card: 1626651146 is not authorized for equipment type: 2")
-
-    # is trained no payment required
-    valid = db.is_user_authorized_for_equipment_type(1626651146, 7)
-    if valid:
-        logging.info("\t[Success] The user identified by card: 1626651146 is authorized for equipment type: 7")
-    else:
-        logging.info("\t[Fail] The user identified by card: 1626651146 is not authorized for equipment type: 7 but should be")
-    
-    # is trained but payment lapsed
-    valid = db.is_user_authorized_for_equipment_type(362577737, 4)
-    if valid:
-        logging.info("\t[Fail] The user identified by card: 362577737 is authorized for equipment type: 4 but should not be")
-    else:
-        logging.info("\t[Success] The user identified by card: 362577737 is not authorized for equipment type: 4")
-
-    # trained and paid
-    valid = db.is_user_authorized_for_equipment_type(4181928747, 4)
-    if valid:
-        logging.info("\t[Success] The user identified by card: 4181928747 is authorized for equipment type: 4")
-    else:
-        logging.info("\t[Fail] The user identified by card: 4181928747 is not authorized for equipment type: 4 but should be")
-    
-    # paid, training not required?
-
-    # test get_user
-    logging.info("Database.get_user test")
-    user = db.get_user(1626651146)
-    logging.info("\tUser: %s <%s>", user[0], user[1])
-
-    # test access attempt
-    logging.info("Testing access attempt")
-    db.log_access_attempt(1626651146, 3, True)
-    sleep(10)
-    db.log_access_completion(1626651146, 3)
-
-    # test reconnection
-    logging.info("Database.reconnect test")
-    db.close()
-    try:
-        db.reconnect()
-        logging.info("\tReconnection successful")
-    except mysql.connector.Error as err:
-        logging.error("\tReconnection failed {}".format(err))
-
-    db.close()
