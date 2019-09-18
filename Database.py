@@ -43,9 +43,9 @@ class Database:
         if 'port' in settings:
             self.connection_settings['port'] = settings['port']
 
-        if 'persistent' in settings:
-            # check if persistent is really set to no/False
-            self.use_persistent_connection = False
+        if 'use_persistent_connection' in settings:
+            if settings['use_persistent_connection'].lower() in ("no", "false", "0"):
+                self.use_persistent_connection = False
 
         logging.debug("DB Connection Settings: %s", self.connection_settings)
 
