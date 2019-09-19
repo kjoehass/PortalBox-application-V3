@@ -16,7 +16,7 @@ include
 lib
 lib64
 share
-pyvenv.config
+pyvenv.cfg
 
 # exclude pip temp files
 pip-selfcheck.json

@@ -10,22 +10,19 @@ import threading
 from time import sleep, time
 from uuid import getnode as get_mac_address
 
-#from third party libraries
-from neopixel import Color
-
 # our code
-from PortalBox import PortalBox
+from portalbox.PortalBox import PortalBox
 from Database import Database
 from Emailer import Emailer
 
 # Definitions aka constants
 DEFAULT_CONFIG_FILE_PATH = "config.ini"
 
-RED = Color(0, 255, 0)
-GREEN = Color(255, 0, 0)
-YELLOW = Color(255, 255, 0)
-BLUE = Color(0, 0, 255)
-ORANGE = Color(30, 225, 0)
+RED = b'\xFF\x00\x00'
+GREEN = b'\x00\xFF\x00'
+YELLOW = b'\xFF\xFF\x00'
+BLUE = b'\x00\x00\xFF'
+ORANGE = b'\xDF\x20\x00'
 
 class PortalBoxApplication:
     '''
@@ -364,7 +361,6 @@ class PortalBoxApplication:
         free resources after run
         '''
         self.box.cleanup()
-        self.db.close()
 
 
     def exit(self):
