@@ -39,7 +39,7 @@ class R2NeoPixelController(AbstractController):
 
 
     def _transmit(self, command):
-        self._controller.write(command.encode('utf-8'))
+        self._controller.write(command)
 
 
     def _receive(self):
@@ -47,13 +47,16 @@ class R2NeoPixelController(AbstractController):
         Read a response from the Arduino and return True on success and False
         on failure
         '''
-        b = self._controller.read(2)
-        if b'0' == b[0]:
-            return True
-        elif b'1' == b[0]:
-            return False
+        response = self._controller.read(2)
+        if 0 < len(response):
+            if '0' == response[0]:
+                return True
+            elif '1' == response[0]:
+                return False
+            else:
+                raise Exception('Communications failed')
         else:
-            raise Exception('Comunications failed')
+            raise Exception('Communications failed')
 
 
     def sleep_display(self):
@@ -61,7 +64,7 @@ class R2NeoPixelController(AbstractController):
         Start a display sleeping animation
         '''
         AbstractController.sleep_display(self)
-        command = "pulse {} {} {}".format(self.sleep_color[0], self.sleep_color[1], self.sleep_color[2])
+        command = "pulse {} {} {}\n".format(self.sleep_color[0], self.sleep_color[1], self.sleep_color[2])
         self._transmit(command)
         return self._receive()
 
@@ -78,7 +81,7 @@ class R2NeoPixelController(AbstractController):
         Set the entire strip to specified color.
         @param (color) color - the color to set defaults to LED's off
         '''
-        command = "color {} {} {}".format(color[0], color[1], color[2])
+        command = "color {} {} {}\n".format(color[0], color[1], color[2])
         self._transmit(command)
         return self._receive()
 
@@ -92,7 +95,7 @@ class R2NeoPixelController(AbstractController):
         if duration > int(self._controller.timeout * 1000):
             self._controller.timeout = duration / 1000
 
-        command = "wipe {} {} {} {}".format(color[0], color[1], color[2], duration)
+        command = "wipe {} {} {} {}\n".format(color[0], color[1], color[2], duration)
         self._transmit(command)
         return self._receive()
 
@@ -102,10 +105,10 @@ class R2NeoPixelController(AbstractController):
         if duration > int(self._controller.timeout * 1000):
             self._controller.timeout = duration / 1000
 
-        command = "blink {} {} {} {}".format(flash_color[0], flash_color[1], flash_color[2], duration)
+        command = "blink {} {} {} {}\n".format(flash_color[0], flash_color[1], flash_color[2], duration)
         self._transmit(command)
         success = self._receive()
         if success:
-            command = "color {} {} {}".format(end_color[0], end_color[1], end_color[2])
+            command = "color {} {} {}\n".format(end_color[0], end_color[1], end_color[2])
             self._transmit(command)
             return self._receive()
