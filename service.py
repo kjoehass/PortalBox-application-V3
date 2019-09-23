@@ -77,7 +77,7 @@ class PortalBoxApplication:
 
         # determine what we are
         profile = (-1,)
-        self.running = False
+        self.running = True
         while self.running and 0 > profile[0]:
             profile = self.db.get_equipment_profile(mac_address)
             if 0 > profile[0]:
@@ -104,6 +104,8 @@ class PortalBoxApplication:
             self.proxy_uid = -1
             self.training_mode = False
             self.wait_for_access_card()
+        else:
+            logging.info("Running ending abnormally. Did not discover identity.")
 
 
     def wait_for_access_card(self):
