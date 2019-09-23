@@ -39,6 +39,7 @@ class R2NeoPixelController(AbstractController):
 
 
     def _transmit(self, command):
+        logging.debug("Sending: '%s' to display controller", command)
         self._controller.write(command)
 
 
@@ -64,7 +65,7 @@ class R2NeoPixelController(AbstractController):
         Start a display sleeping animation
         '''
         AbstractController.sleep_display(self)
-        command = "pulse {} {} {}\n".format(self.sleep_color[0], self.sleep_color[1], self.sleep_color[2])
+        command = "pulse {} {} {}\n".format(ord(self.sleep_color[0]), ord(self.sleep_color[1]), ord(self.sleep_color[2]))
         self._transmit(command)
         return self._receive()
 
@@ -81,7 +82,7 @@ class R2NeoPixelController(AbstractController):
         Set the entire strip to specified color.
         @param (color) color - the color to set defaults to LED's off
         '''
-        command = "color {} {} {}\n".format(color[0], color[1], color[2])
+        command = "color {} {} {}\n".format(ord(color[0]), ord(color[1]), ord(color[2]))
         self._transmit(command)
         return self._receive()
 
@@ -95,7 +96,7 @@ class R2NeoPixelController(AbstractController):
         if duration > int(self._controller.timeout * 1000):
             self._controller.timeout = duration / 1000
 
-        command = "wipe {} {} {} {}\n".format(color[0], color[1], color[2], duration)
+        command = "wipe {} {} {} {}\n".format(ord(color[0]), ord(color[1]), ord(color[2]), duration)
         self._transmit(command)
         return self._receive()
 
@@ -105,10 +106,10 @@ class R2NeoPixelController(AbstractController):
         if duration > int(self._controller.timeout * 1000):
             self._controller.timeout = duration / 1000
 
-        command = "blink {} {} {} {}\n".format(flash_color[0], flash_color[1], flash_color[2], duration)
+        command = "blink {} {} {} {}\n".format(ord(flash_color[0]), ord(flash_color[1]), ord(flash_color[2]), duration)
         self._transmit(command)
         success = self._receive()
         if success:
-            command = "color {} {} {}\n".format(end_color[0], end_color[1], end_color[2])
+            command = "color {} {} {}\n".format(ord(end_color[0]), ord(end_color[1]), ord(end_color[2]))
             self._transmit(command)
             return self._receive()
