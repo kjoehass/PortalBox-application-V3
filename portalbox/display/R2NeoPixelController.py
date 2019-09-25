@@ -2,6 +2,7 @@ from __future__ import division
 
 # Import from standard library
 import logging
+from time import sleep
 
 # Import from our module
 from .AbstractController import AbstractController, BLACK
@@ -48,19 +49,25 @@ class R2NeoPixelController(AbstractController):
 
     def _receive(self):
         '''
-        Read a response from the Arduino and return True on success and False
-        on failure
+        Read from serial port until a '0' or '1' are received from the Arduino
+        and return True on success and False on failure
         '''
-        response = self._controller.read(2)
-        if 0 < len(response):
-            if '0' == response[0]:
-                return True
-            elif '1' == response[0]:
-                return False
+        guard = 0
+
+        while 200 > guard:
+            guard += 1
+            response = self._controller.read(1)
+            if 0 < len(response):
+                if '0' == response[0]:
+                    return True
+                elif '1' == response[0]:
+                    return False
+                #else: read a whitespace character
             else:
                 raise Exception('Communications failed')
-        else:
-            raise Exception('Communications failed')
+            sleep(0.05)
+
+        raise Exception('Communications failed')
 
 
     def sleep_display(self):
