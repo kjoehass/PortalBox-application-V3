@@ -144,7 +144,7 @@ class PortalBoxApplication:
 
                 self.box.set_display_color_wipe(BLUE, 15)
 
-            sleep(1)
+            sleep(0.2)
 
 
     def run_session(self, user_id):
@@ -196,10 +196,7 @@ class PortalBoxApplication:
                 # we did not read a card
                 grace_count += 1
 
-            self.box.set_display_color()
-            sleep(0.1)
-            self.box.set_display_color(RED)
-            sleep(0.1)
+            self.box.flash_display(RED, 100, 1, RED)
 
 
     def wait_for_authorized_card_removal(self):
@@ -284,14 +281,10 @@ class PortalBoxApplication:
                         self.card_present = True
                         self.proxy_uid = uid
                         break
-                
-            
+
             grace_count += 1
-            self.box.set_display_color(YELLOW)
-            sleep(0.15)
-            self.box.set_display_color()
             self.box.set_buzzer(True)
-            sleep(0.10)
+            self.box.flash_display(YELLOW, 100, 1, YELLOW)
             self.box.set_buzzer(False)
 
         if self.running and not self.card_present:
@@ -303,6 +296,7 @@ class PortalBoxApplication:
         self.card_present = False # indicate to up stack frames card is gone to end their loops
         grace_count = 0
         self.box.has_button_been_pressed() # clear pending events
+        self.box.set_display_color(ORANGE)
         while self.running and grace_count < 600:
             #check for button press
             if self.box.has_button_been_pressed():
@@ -313,11 +307,8 @@ class PortalBoxApplication:
                 grace_count += 1
             
             if 1 > (grace_count % 2):
-                #grace count is even
-                self.box.set_display_color(ORANGE)
-            else:
-                self.box.set_display_color()
-            
+                self.box.flash_display(ORANGE, 100, 1, ORANGE)
+
             if 1 > (grace_count % 20):
                 self.box.set_buzzer(True)
             else:
@@ -325,7 +316,7 @@ class PortalBoxApplication:
 
             sleep(0.1)
 
-        # endless squeal will get boxes thrown out        
+        # endless squeal will get boxes thrown out
         self.box.set_buzzer(False)
 
         if not self.card_present:
@@ -352,10 +343,8 @@ class PortalBoxApplication:
                     else:
                         grace_count += 1
 
-                    self.box.set_display_color()   
-                    sleep(0.1)
-                    self.box.set_display_color(RED)
-                    sleep(0.1)
+                    self.box.flash_display(RED, 100, 1, RED)
+
 
 
     def finalize(self):
