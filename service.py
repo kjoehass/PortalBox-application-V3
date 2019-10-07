@@ -36,6 +36,7 @@ class PortalBoxApplication:
         '''
         self.exceeded_time = False
         self.running = False
+        self.equipment_id = False
         self.box = PortalBox()
         self.settings = settings
 
@@ -349,7 +350,6 @@ class PortalBoxApplication:
                     self.box.flash_display(RED, 100, 1, RED)
 
 
-
     def finalize(self):
         '''
         free resources after run
@@ -361,6 +361,8 @@ class PortalBoxApplication:
         ''' Stop looping in all run states '''
         logging.info("Service Exiting")
         if self.running:
+            if self.equipment_id:
+                self.db.log_shutdown_status(self.equipment_id, False)
             self.running = False
         else:
             # never made it to the run state

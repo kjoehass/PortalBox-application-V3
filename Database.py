@@ -200,6 +200,8 @@ class Database:
     def log_started_status(self, equipment_id):
         '''
         Logs that this portal box has started up
+
+        @param equipment_id: The ID assigned to the portal box
         '''
         connection = self._connection
 
@@ -214,7 +216,7 @@ class Database:
                 "(SELECT id, %s FROM event_types "
                 "WHERE name = 'Startup Complete')")
             cursor = connection.cursor()
-            cursor.execute(query, (equipment_id))
+            cursor.execute(query, (equipment_id,))
 
             # No check for success?
             connection.commit()
@@ -228,6 +230,10 @@ class Database:
     def log_shutdown_status(self, equipment_id, card_id):
         '''
         Logs that this portal box is shutting down
+
+        @param equipment_id: The ID assigned to the portal box
+        @param card_id: The ID read from the card presented by the user use
+            or a falsy value if shutdown is not related to a card
         '''
         connection = self._connection
 
@@ -238,11 +244,18 @@ class Database:
             else:
                 connection = self._connect()
 
-            query = ("INSERT INTO log(event_type_id, equipment_id, card_id) "
-                "(SELECT id, %s, %s FROM event_types "
-                "WHERE name = 'Planned Shutdown')")
-            cursor = connection.cursor()
-            cursor.execute(query, (equipment_id, card_id))
+            if card_id:
+                query = ("INSERT INTO log(event_type_id, equipment_id, card_id) "
+                    "(SELECT id, %s, %s FROM event_types "
+                    "WHERE name = 'Planned Shutdown')")
+                cursor = connection.cursor()
+                cursor.execute(query, (equipment_id, card_id))
+            else:
+                query = ("INSERT INTO log(event_type_id, equipment_id) "
+                    "(SELECT id, %s FROM event_types "
+                    "WHERE name = 'Planned Shutdown')")
+                cursor = connection.cursor()
+                cursor.execute(query, (equipment_id,))
 
             # No check for success?
             connection.commit()
