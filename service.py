@@ -99,6 +99,8 @@ class PortalBoxApplication:
             self.timeout_period = profile[5]
 
             logging.info("Discovered identity. Type: %s(%s) Timeout period: %s", profile[2], self.equipment_type_id, self.timeout_period)
+            self.db.log_started_status(self.equipment_id)
+
             self.box.set_display_color_wipe(GREEN, 10)
             self.timeout_period *= 60 # python threading wants seconds, DB has minutes
             self.proxy_uid = -1
@@ -123,6 +125,7 @@ class PortalBoxApplication:
                 logging.debug("Card of type: %s was presented", card_type)
                 if Database.SHUTDOWN_CARD == card_type:
                     logging.info("Shutdown Card: %s detected, triggering box shutdown", uid)
+                    self.db.log_shutdown_status(self.equipment_id, uid)
                     self.box.set_display_color()
                     os.system("shutdown -h now")
                 elif Database.TRAINING_CARD == card_type:

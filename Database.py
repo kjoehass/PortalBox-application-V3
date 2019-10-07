@@ -197,6 +197,62 @@ class Database:
         return profile
 
 
+    def log_started_status(self, equipment_id):
+        '''
+        Logs that this portal box has started up
+        '''
+        connection = self._connection
+
+        try:
+            if self.use_persistent_connection:
+                if not connection.is_connected():
+                    connection = self._reconnect()
+            else:
+                connection = self._connect()
+
+            query = ("INSERT INTO log(event_type_id, equipment_id) "
+                "(SELECT id, %s FROM event_types "
+                "WHERE name = 'Startup Complete')")
+            cursor = connection.cursor()
+            cursor.execute(query, (equipment_id))
+
+            # No check for success?
+            connection.commit()
+            cursor.close()
+            if not self.use_persistent_connection:
+                connection.close()
+        except mysql.connector.Error as err:
+            logging.error("{}".format(err))
+
+
+    def log_shutdown_status(self, equipment_id, card_id):
+        '''
+        Logs that this portal box is shutting down
+        '''
+        connection = self._connection
+
+        try:
+            if self.use_persistent_connection:
+                if not connection.is_connected():
+                    connection = self._reconnect()
+            else:
+                connection = self._connect()
+
+            query = ("INSERT INTO log(event_type_id, equipment_id, card_id) "
+                "(SELECT id, %s, %s FROM event_types "
+                "WHERE name = 'Planned Shutdown')")
+            cursor = connection.cursor()
+            cursor.execute(query, (equipment_id, card_id))
+
+            # No check for success?
+            connection.commit()
+            cursor.close()
+            if not self.use_persistent_connection:
+                connection.close()
+        except mysql.connector.Error as err:
+            logging.error("{}".format(err))
+
+
     def log_access_attempt(self, card_id, equipment_id, successful):
         '''
         Logs start time for user using a resource.
