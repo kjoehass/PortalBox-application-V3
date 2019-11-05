@@ -45,12 +45,12 @@ class PortalBoxApplication:
         '''
         Actually get ready to run... we defered initialization in order to
         configure signal handlers in __main__ but they should now be in place
-        
+
         This corresponds to the transition from Start in FSM.odg see docs
         '''
         # Step 1 Do a bit of a dance to show we are running
         self.box.set_display_color_wipe(RED, 10)
-        
+
         # Set 2 Figure out our identity
         mac_address = format(get_mac_address(), 'x')
         logging.debug("Discovered Mac Address: %s", mac_address)
@@ -73,7 +73,7 @@ class PortalBoxApplication:
             logging.error("{}".format(e))
             sys.exit(1)
 
-        # give user hint we are makeing progress 
+        # give user hint we are makeing progress
         self.box.set_display_color_wipe(ORANGE, 10)
 
         # determine what we are
@@ -265,7 +265,8 @@ class PortalBoxApplication:
         self.box.set_display_color(YELLOW)
         grace_count = 0
         logging.info("Card Removed")
-        self.box.has_button_been_pressed() # clear pending events
+        # removed for fast logout feature
+        # self.box.has_button_been_pressed() # clear pending events
         while self.running and grace_count < 16:
             # Check for button press
             if self.box.has_button_been_pressed():
@@ -309,7 +310,7 @@ class PortalBoxApplication:
                 break
             else:
                 grace_count += 1
-            
+
             if 1 > (grace_count % 2):
                 self.box.flash_display(ORANGE, 100, 1, ORANGE)
 
@@ -411,7 +412,7 @@ if __name__ == "__main__":
     # Add signal handler so systemd can shutdown service
     signal.signal(signal.SIGINT, service.handle_interupt)
     signal.signal(signal.SIGTERM, service.handle_interupt)
-    
+
     # Run service
     service.run()
 

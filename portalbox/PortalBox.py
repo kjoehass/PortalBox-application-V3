@@ -7,6 +7,9 @@
 import logging
 from time import sleep
 
+import datetime              # for time on button presses
+from queue import Queue      # thredsafe queue
+
 # Our libraries
 from .MFRC522 import MFRC522 # this is a modified version of https://github.com/mxgxw/MFRC522-python
                             # bundling it is sort of a license violation (can't change license)
@@ -55,7 +58,10 @@ class PortalBox:
         GPIO.setup(GPIO_SOLID_STATE_RELAY_PIN, GPIO.OUT)
 
         GPIO.setup(GPIO_BUTTON_PIN, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
-        GPIO.add_event_detect(GPIO_BUTTON_PIN, GPIO.RISING)
+
+        self.button_press_queue = Queue()
+        GPIO.add_event_detect(GPIO_BUTTON_PIN, GPIO.RISING,
+            callback=self.button_callback)
 
         self.set_equipment_power_on(False)
 
@@ -72,7 +78,13 @@ class PortalBox:
 
         # set up some state
         self.sleepMode = False
-
+    def button_callback(self):
+        '''
+        callback for gpio called from worker thread
+        '''
+        # todo: blink the display or buzz to acknoledge button press
+        # IDK how to do this yet.
+        self.button_press_queue.put(datetime.datetime.now())
 
     def set_equipment_power_on(self, state):
         '''
@@ -108,13 +120,21 @@ class PortalBox:
             return False
 
 
-    def has_button_been_pressed(self):
+    def has_button_been_pressed(self, max_age=datetime.timedelta(seconds=9)):
         '''
-        Use GPIO event detection to determine if the button has been pressed
-        since the last call to this method
+        Check if the button is pressed using events from the callback.
+        max_age is the amount of time to look into the past.
         '''
-        return GPIO.event_detected(GPIO_BUTTON_PIN)
-
+        # no events, mean no presses.
+        if self.button_press_queue.empty():
+            return False
+        # drain the queue until we hit a recent enough button press
+        while not self.button_press_queue.empty():
+            td = self.button_press_queue.get()
+            if (datetime.datetime.now() - td) < max_age:
+                return True
+        # sadly, no more button press
+        return False
 
     def read_RFID_card(self):
         '''
