@@ -41,6 +41,13 @@ class PortalBoxApplication:
         self.settings = settings
 
 
+    def __del__(self):
+        '''
+        free resources after run
+        '''
+        self.box.cleanup()
+
+
     def run(self):
         '''
         Actually get ready to run... we defered initialization in order to
@@ -350,13 +357,6 @@ class PortalBoxApplication:
                     self.box.flash_display(RED, 100, 1, RED)
 
 
-    def finalize(self):
-        '''
-        free resources after run
-        '''
-        self.box.cleanup()
-
-
     def exit(self):
         ''' Stop looping in all run states '''
         logging.info("Service Exiting")
@@ -416,5 +416,4 @@ if __name__ == "__main__":
     service.run()
 
     # Cleanup and exit
-    service.finalize()
     logging.shutdown()
