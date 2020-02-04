@@ -325,9 +325,9 @@ class Database:
             logging.error("{}".format(err))
 
 
-    def is_user_authorized_for_equipment_type(self, user_id, equipment_type_id):
+    def is_user_authorized_for_equipment_type(self, card_id, equipment_type_id):
         '''
-        Check if card holder identified by user_id is authorized for the
+        Check if card holder identified by card_id is authorized for the
         equipment type identified by equipment_type_id
         '''
         is_authorized = False
@@ -346,16 +346,16 @@ class Database:
             
             (requires_training,requires_payment) = cursor.fetchone()
             if requires_training and requires_payment:
-                query = ("SELECT count(p.id) FROM payments AS p "
-                    "INNER JOIN users_x_cards AS u ON u.user_id = p.user_id "
-                    "WHERE u.card_id = %s")
-                cursor.execute(query, (user_id,))
-                (count,) = cursor.fetchone()
-                if 0 < count:
+                # check balance
+                query = ("SELECT get_user_balance_for_card(%s)")
+                cursor.execute(query, (card_id,))
+                (balance,) = cursor.fetchone()
+                if 0.0 < balance:
+                    # balance okay check authorization
                     query = ("SELECT count(u.id) FROM users_x_cards AS u "
                     "INNER JOIN authorizations AS a ON a.user_id= u.user_id "
                     "WHERE u.card_id = %s AND a.equipment_type_id = %s")
-                    cursor.execute(query, (user_id, equipment_type_id))
+                    cursor.execute(query, (card_id, equipment_type_id))
                     (count,) = cursor.fetchone()
                     if 0 < count:
                         is_authorized = True
@@ -363,17 +363,16 @@ class Database:
                 query = ("SELECT count(u.id) FROM users_x_cards AS u "
                 "INNER JOIN authorizations AS a ON a.user_id= u.user_id "
                 "WHERE u.card_id = %s AND a.equipment_type_id = %s")
-                cursor.execute(query, (user_id, equipment_type_id))
+                cursor.execute(query, (card_id, equipment_type_id))
                 (count,) = cursor.fetchone()
                 if 0 < count:
                     is_authorized = True
             elif not requires_training and requires_payment:
-                query = ("SELECT count(p.id) FROM payments AS p "
-                    "INNER JOIN users_x_cards AS u ON u.user_id = p.user_id "
-                    "WHERE u.card_id = %s")
-                cursor.execute(query, (user_id,))
-                (count,) = cursor.fetchone()
-                if 0 < count:
+                # check balance
+                query = ("SELECT get_user_balance_for_card(%s)")
+                cursor.execute(query, (card_id,))
+                (balance,) = cursor.fetchone()
+                if 0.0 < balance:
                     is_authorized = True
             else:
                 # we don't require payment or training, user is implicitly authorized
