@@ -3,7 +3,7 @@ Description=Portal Box Service
 After=network.target
 
 [Service]
-ExecStart=/usr/bin/python /opt/portal-box/service.py /opt/portal-box/config.ini
+ExecStart=/usr/bin/python3 /opt/portalbox/service.py /opt/portalbox/config.ini
 
 [Install]
 WantedBy=multi-user.target

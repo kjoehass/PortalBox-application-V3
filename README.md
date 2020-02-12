@@ -18,9 +18,7 @@ Software Libraries
 	- configparser (only required for python 2.7, python 3.x satisfies dependancy internally)
 	- mysql-connector
 	- RPi.GPIO
-	- spi
-- Which must be built from source ditribution
-	- rpi_ws281x (see: https://github.com/jgarff/rpi_ws281x)
+	- spi (we use a modified version as the version on PyPi does not support Python 3.x)
 
 ## Configuration
 Configuration of Potal-Boxes occurs in two phases. First the Raspberry Pi at its heart must be put in a usable state. Then after the service is installed you can configure the service.
@@ -67,19 +65,6 @@ git clone git@github.com/Bucknell-ECE/Badging-Box.git portalbox
 ```
 
 2) Install the dependancies
--Install the dependancies which must be built from source:
-
-	```
-	sudo apt install git python-dev scons swig
-	cd
-	git clone https://github.com/jgarff/rpi_ws281x.git
-	cd rpi_ws281x
-	scons
-	cd python
-	sudo python setup.py install
-	```
-
-- Install the python packages
 	```sh
 	cd ${PATH_TO_PROJECT}/portalbox
 	pip install -r requirements.txt
@@ -92,13 +77,15 @@ We use systemd to start and stop our service upon startup and before shutdown th
 
 ```
 cd ${PATH_TO_PROJECT}/portalbox
-sudo cp portal-box.service /etc/systemd/system/portal-box.service
-sudo chmod 644 /etc/systemd/system/portal-box.service
+sudo cp portal-box.service /etc/systemd/system/portalbox.service
+sudo chmod 644 /etc/systemd/system/portalbox.service
 sudo systemctl daemon-reload
-sudo systemctl enable portal-box.service
+sudo systemctl enable portalbox.service
 ```
 
 ## Known Bugs
-- Starting the service with an invalid config file or and invalid path to a config file fails in odd ways. This should be cleaned up.
+- Starting the service with an invalid config file or an invalid path to a config file fails in odd ways. This should be cleaned up.
 - Email messages are hard coded in well code, templates should be used
 	- should be able to configure the location of email template files
+- GMail uses weak certificates which recent raspbian releases reject as invalid. We need to configure smtplib to ignore the weak certificates and use only the certificates raspbian find trustworthy (requires Python 3.x).
+- We use a custom spi, we should consider moving to spidev or releasing our verion of spi on PyPi.

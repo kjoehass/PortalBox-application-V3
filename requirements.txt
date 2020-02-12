@@ -1,4 +1,4 @@
 configparser
 mysql-connector-python
 RPi.GPIO
-spi>=0.2.0
+git+git@github.com:tkegan/python-spi.git@master
