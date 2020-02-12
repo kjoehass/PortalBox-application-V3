@@ -341,7 +341,7 @@ class PortalBoxApplication:
                 # Card is still present
                 self.box.set_display_color_wipe(BLUE, 50)
                 user = self.db.get_user(self.authorized_uid)
-                self.emailer.send(user[2], "Access Card left in PortalBox", "{} {} it appears you left your access card in a badge box for the {} in the {}".format(user[0], user[1], self.equipment_type_id, self.location))
+                self.emailer.send(user[1], "Access Card left in PortalBox", "{} it appears you left your access card in a badge box for the {} in the {}".format(user[0], self.equipment_type_id, self.location))
 
                 # wait for card to be removed... we need to make sure we don't have consecutive read failure
                 grace_count = 0
