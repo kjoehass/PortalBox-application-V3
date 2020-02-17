@@ -4,6 +4,7 @@
 from email.mime.text import MIMEText
 import logging
 import smtplib
+import ssl
 
 class Emailer:
     '''
@@ -24,7 +25,11 @@ class Emailer:
         message = msg.as_string()
 
         server = smtplib.SMTP(self.settings['smtp_server'], int(self.settings['smtp_port']))
-        server.starttls()
+        context = ssl.create_default_context()
+        if 'my_smtp_server_uses_a_weak_certificate' in self.settings:
+            if self.settings['my_smtp_server_uses_a_weak_certificate'].lower() in ("yes", "true", "1"):
+                context.set_ciphers('HIGH:!DH:!aNULL')
+        server.starttls(context=context)
         server.login(self.settings['auth_user'], self.settings['auth_password'])
         server.sendmail(self.settings['from_address'], self.settings['to_address'], message)
         server.quit()
@@ -42,7 +47,7 @@ if __name__ == "__main__":
 
     # Read our Configuration
     settings = configparser.ConfigParser()
-    settings.read('../config.ini')
+    settings.read('config.ini')
 
     # connect to backend database
     emailer = Emailer(settings['email'])
