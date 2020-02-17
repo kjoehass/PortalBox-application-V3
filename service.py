@@ -234,6 +234,8 @@ class PortalBoxApplication:
                                 self.box.set_display_color(GREEN)
                     self.activation_timeout = threading.Timer(self.timeout_period, self.timeout)
                     self.activation_timeout.start()
+                else:
+                    break
 
             # Scan for card
             uid = self.box.read_RFID_card()
@@ -303,8 +305,14 @@ class PortalBoxApplication:
 
 
     def wait_for_timeout_grace_period_to_expire(self):
+        """
+        Four posibilities:
+        1) user presses button with card in to renew session
+        2) user removes card and presses button to end session
+        3) user removes card but does not press button to end session
+        4) user forgot their card
+        """
         logging.info("Equipment usage timeout")
-        self.card_present = False # indicate to up stack frames card is gone to end their loops
         grace_count = 0
         self.box.has_button_been_pressed() # clear pending events
         self.box.set_display_color(ORANGE)
@@ -312,8 +320,15 @@ class PortalBoxApplication:
             #check for button press
             if self.box.has_button_been_pressed():
                 logging.info("Button was pressed, extending time out period")
-                self.card_present = True # do not indicate to up stack frames that card is gone so their loops resume
-                break
+                uid = self.box.read_RFID_card()
+                uid2 = self.box.read_RFID_card() #try twice since reader fails consecutive reads
+                if -1 < uid or -1 < uid2:
+                    # Card is still present session renewed
+                    return
+                else:
+                    # Card removed end session
+                    self.card_present = False
+                    return
             else:
                 grace_count += 1
             
@@ -327,34 +342,36 @@ class PortalBoxApplication:
 
             sleep(0.1)
 
-        # endless squeal will get boxes thrown out
+        # grace period expired 
+        # stop the buzzer
         self.box.set_buzzer(False)
 
-        if not self.card_present:
-            # shutdown now, do not wait for email or card removal
-            self.box.set_equipment_power_on(False)
+        # shutdown now, do not wait for email or card removal
+        self.box.set_equipment_power_on(False)
 
-            # was forgotten card?
-            uid = self.box.read_RFID_card()
-            uid2 = self.box.read_RFID_card() #try twice since reader fails consecutive reads
-            if -1 < uid or -1 < uid2:
-                # Card is still present
-                self.box.set_display_color_wipe(BLUE, 50)
-                user = self.db.get_user(self.authorized_uid)
-                self.emailer.send(user[2], "Access Card left in PortalBox", "{} {} it appears you left your access card in a badge box for the {} in the {}".format(user[0], user[1], self.equipment_type_id, self.location))
+        # was forgotten card?
+        uid = self.box.read_RFID_card()
+        uid2 = self.box.read_RFID_card() #try twice since reader fails consecutive reads
+        if -1 < uid or -1 < uid2:
+            # Card is still present
+            logging.info("User card was left in portal box. Sending user an email.")
+            self.box.set_display_color_wipe(BLUE, 50)
+            user = self.db.get_user(self.authorized_uid)
+            try:
+                self.emailer.send(user[1], "Access Card left in PortalBox", "{} it appears you left your access card in a badge box for the {} in the {}".format(user[0], self.equipment_type_id, self.location))
+            except Exception as e:
+                logging.error("{}".format(e))
 
-                # wait for card to be removed... we need to make sure we don't have consecutive read failure
-                grace_count = 0
-                while self.running and grace_count < 2:
-                    # Scan for card
-                    uid = self.box.read_RFID_card()
-                    if -1 < uid:
-                        # card present
-                        grace_count = 0
-                    else:
-                        grace_count += 1
-
-                    self.box.flash_display(RED, 100, 1, RED)
+            self.box.set_display_color(RED)
+            while self.running and self.card_present:
+            # wait for card to be removed... we need to make sure we don't have consecutive read failure
+                uid = self.box.read_RFID_card()
+                uid2 = self.box.read_RFID_card() #try twice since reader fails consecutive reads
+                if 0 > uid and 0 > uid2:
+                    self.card_present = False
+        else:
+            # Card removed end session
+            self.card_present = False
 
 
     def exit(self):
