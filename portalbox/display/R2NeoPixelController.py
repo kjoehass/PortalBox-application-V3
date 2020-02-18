@@ -44,7 +44,7 @@ class R2NeoPixelController(AbstractController):
 
     def _transmit(self, command):
         logging.debug("Sending: '%s' to display controller", command)
-        self._controller.write(command, "ascii")
+        self._controller.write(bytes(command, "ascii"))
 
 
     def _receive(self):
