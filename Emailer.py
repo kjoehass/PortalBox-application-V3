@@ -10,19 +10,30 @@ class Emailer:
     '''
     Bind settings in a class for reuse 
     '''
+
     def __init__(self, settings):
         self.settings = settings
 
 
     def send(self, to, subject, body):
-        msg = MIMEText(body)
-        msg['From'] = self.settings['from_address']
-        msg['To'] = to
-        msg['Subject'] = subject
-        if 'reply_to' in self.settings:
-            msg.add_header('reply-to', self.settings['reply_to'])
+        """
+        Send an email using the configured settings.
 
-        message = msg.as_string()
+        params:
+            to - The email address to which to send the email.
+            subject - The subject for the email
+            body - The message body for the email
+        """
+        message = MIMEText(body)
+        message['From'] = self.settings['from_address']
+        message['To'] = to
+        if 'cc_address' in self.settings:
+            message['Cc'] = self.settings['cc_address']
+        if 'bcc_address' in self.settings:
+            message['Bbc'] = self.settings['bcc_address']
+        message['Subject'] = subject
+        if 'reply_to' in self.settings:
+            message.add_header('reply-to', self.settings['reply_to'])
 
         server = smtplib.SMTP(self.settings['smtp_server'], int(self.settings['smtp_port']))
         context = ssl.create_default_context()
@@ -31,12 +42,12 @@ class Emailer:
                 context.set_ciphers('HIGH:!DH:!aNULL')
         server.starttls(context=context)
         server.login(self.settings['auth_user'], self.settings['auth_password'])
-        server.sendmail(self.settings['from_address'], self.settings['to_address'], message)
+        server.send_message(message)
         server.quit()
-        logging.info("Emailed: %s about: %s", self.settings['to_address'], subject)
+        logging.info("Emailed: %s about: %s", to, subject)
 
 
-# Rest of this file is the test suite. Use `python3 Database.py` to run
+# Rest of this file is the test suite. Use `python3 Email.py` to run
 # check prevents running of test suite if loading (import) as a module
 if __name__ == "__main__":
     # standard library
@@ -52,4 +63,4 @@ if __name__ == "__main__":
     # connect to backend database
     emailer = Emailer(settings['email'])
 
-    emailer.send(settings['email']['to_address'], "Hello World", "Greetings Developer. You have tested the Emailer module.")
+    emailer.send(settings['email']['cc_address'], "Hello World", "Greetings Developer. You have tested the Emailer module.")
