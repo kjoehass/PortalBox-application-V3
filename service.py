@@ -103,6 +103,7 @@ class PortalBoxApplication:
             #   (int) time limit in minutes
             self.equipment_id = profile[0]
             self.equipment_type_id = profile[1]
+            self.equipment_type = profile[2]
             self.location = profile[4]
             self.timeout_period = profile[5]
 
@@ -358,7 +359,7 @@ class PortalBoxApplication:
             self.box.set_display_color_wipe(BLUE, 50)
             user = self.db.get_user(self.authorized_uid)
             try:
-                self.emailer.send(user[1], "Access Card left in PortalBox", "{} it appears you left your access card in a badge box for the {} in the {}".format(user[0], self.equipment_type_id, self.location))
+                self.emailer.send(user[1], "Access Card left in PortalBox", "{} it appears you left your access card in a badge box for the {} in the {}".format(user[0], self.equipment_type, self.location))
             except Exception as e:
                 logging.error("{}".format(e))
 
