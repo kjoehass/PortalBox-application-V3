@@ -57,13 +57,14 @@ class PortalBoxApplication:
         '''
         # Step 1 Do a bit of a dance to show we are running
         self.box.set_display_color_wipe(RED, 10)
+        logging.info("Starting to run portal box")
         
         # Set 2 Figure out our identity
         mac_address = format(get_mac_address(), 'x')
-        logging.debug("Discovered Mac Address: %s", mac_address)
+        logging.info("Discovered Mac Address: %s", mac_address)
 
         # connect to backend database
-        logging.debug("Connecting to database on host %s", self.settings['db']['host'])
+        logging.info("Connecting to database on host %s", self.settings['db']['host'])
         try:
             self.db = Database(self.settings['db'])
             logging.debug("Connected to Database")
@@ -74,7 +75,7 @@ class PortalBoxApplication:
         # be prepared to send emails
         try:
             self.emailer = Emailer(self.settings['email'])
-            logging.debug("Cached email settings")
+            logging.info("Cached email settings")
         except Exception as e:
             # should be unreachable
             logging.error("{}".format(e))
@@ -84,6 +85,7 @@ class PortalBoxApplication:
         self.box.set_display_color_wipe(ORANGE, 10)
 
         # determine what we are
+        logging.info("Getting equipment profile")
         profile = (-1,)
         self.running = True
         while self.running and 0 > profile[0]:
@@ -389,7 +391,7 @@ class PortalBoxApplication:
 
     def handle_interupt(self, signum, frame):
         ''' Stop the service from a signal'''
-        logging.debug("Interupted")
+        logging.info("Interupted")
         self.exit()
 
 
