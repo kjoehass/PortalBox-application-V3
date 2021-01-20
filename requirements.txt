@@ -1,4 +1,5 @@
 configparser
 mysql-connector-python
 RPi.GPIO
-python3-spi
+spidev
+mfrc522
