@@ -3,3 +3,4 @@ mysql-connector-python
 RPi.GPIO
 spidev
 mfrc522
+watchdog
