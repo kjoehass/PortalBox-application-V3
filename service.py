@@ -125,7 +125,7 @@ class PortalBoxApplication:
         '''
         Wait for a card and if we read a card decide what to do
         '''
-        self.box.set_display_color_wipe(BLUE, 15)
+        self.box.sleep_display()
         # Run... loop endlessly waiting for RFID cards
         while self.running:
             # Scan for card
@@ -147,16 +147,17 @@ class PortalBoxApplication:
                         self.training_mode = False
                     else:
                         self.wait_for_unauthorized_card_removal(uid)
+                    self.box.sleep_display()
                 elif Database.USER_CARD == card_type:
                     if self.db.is_user_authorized_for_equipment_type(uid, self.equipment_type_id):
                         logging.info("User identitfied by card: %s is authorized to use equipment", uid)
                         self.run_session(uid)
                     else:
                         self.wait_for_unauthorized_card_removal(uid)
+                    self.box.sleep_display()
                 else:
                     self.wait_for_unauthorized_card_removal(uid)
-
-                self.box.set_display_color_wipe(BLUE, 15)
+                    self.box.sleep_display()
 
             sleep(0.2)
 
