@@ -8,9 +8,13 @@ DEFAULT_BRIGHTNESS = 16
 MAX_PULSE_BRIGHTNESS = 30
 MIN_PULSE_BRIGHTNESS = 3
 PULSE_BRIGHTNESS_STEP = 2
+# Legacy definition of color black
 BLACK = (0, 0, 0)
 
+# The driver runs in an infinite loop, checking for new commands or updating
+# the pixels. This is the duration of each loop, in milliseconds.
 LOOP_MS = 100
+
 
 class DotstarStrip:
     """
@@ -21,20 +25,21 @@ class DotstarStrip:
     """
 
     def __init__(self, length, spi_bus, spi_device):
+        # number of pixels in the strip
         self.length = length
-        #self.brightness = DEFAULT_BRIGHTNESS
+        # each pixel has its own brightness and color tuple
         self.brightness = [DEFAULT_BRIGHTNESS] * length
-        self.led_colors = [(0x00, 0x00, 0x00)] * length
+        self.led_colors = [BLACK] * length
 
         self.is_pulsing = False
         self.brightness_step = 0
         self.pulse_rising = False
 
         self.is_blinking = False
-        self.blink_color = (0x00, 0x00, 0x00)
+        self.blink_color = Black
 
         self.is_wiping = False
-        self.wipe_color = (0x00, 0x00, 0x00)
+        self.wipe_color = Black
 
         self.total_duration = 0
         self.step_ms = 0
@@ -51,7 +56,6 @@ class DotstarStrip:
 
     def set_brightness(self, brightness):
         """Set the common brightness value for all pixels"""
-        #self.brightness = brightness
         self.brightness = [brightness] * self.length
 
     def set_pixel_brightness(self, brightness, number):
@@ -74,13 +78,18 @@ class DotstarStrip:
         bytes after the data is sent
         """
         self.spi.writebytes([0x00] * 4)  # begin frame
-        #for red, green, blue in self.led_colors:  # swap blue, green order
+        # for red, green, blue in self.led_colors:  # swap blue, green order
         for pixel in range(self.length):
-            self.spi.writebytes([0xE0 + self.brightness[pixel],
-                                        self.led_colors[pixel][0],
-                                        self.led_colors[pixel][2],
-                                        self.led_colors[pixel][1]])
+            self.spi.writebytes(
+                [
+                    0xE0 + self.brightness[pixel],
+                    self.led_colors[pixel][0],
+                    self.led_colors[pixel][2],
+                    self.led_colors[pixel][1],
+                ]
+            )
         self.spi.writebytes([0xFF] * 4)  # end frame
+
 
 def process_command(command, led_strip):
     """
@@ -104,18 +113,21 @@ def process_command(command, led_strip):
 
     # get command part of string and determine if it is recognized
     if tokens[0] == "blink":
-        # the blink command requires a color as three components, a duration,
-        # and a repeat as inputs
+        # the blink command requires a color tuple, a duration (ms),
+        # and a repeat count as inputs
         red, green, blue, led_strip.duration, led_strip.repeats = params
-        led_strip.fill_pixels( (red, green, blue) )
+        led_strip.fill_pixels((red, green, blue))
         led_strip.is_blinking = True
 
-        # Calculate the time for each half-blink, round to nearest 100ms,
-        # minimum is 100ms
+        # Calculate the time for each half-blink, round to nearest loop
+        # duration
         led_strip.wait_ms = led_strip.duration // (2 * led_strip.repeats)
-        led_strip.wait_ms = ((led_strip.wait_ms + (LOOP_MS // 2)) // LOOP_MS) * LOOP_MS
+        led_strip.wait_ms = (led_strip.wait_ms + (LOOP_MS // 2)) // LOOP_MS * LOOP_MS
         if led_strip.wait_ms < LOOP_MS:
             led_strip.wait_ms = LOOP_MS
+
+        # Calculate the actual duration of the effect, using the calculated
+        # duration for each blink
         led_strip.duration = led_strip.wait_ms * 2 * led_strip.repeats
 
         # a blink starts will all pixels dark
@@ -132,17 +144,21 @@ def process_command(command, led_strip):
         # Calculate the time for each half-blink, round to nearest 100ms,
         # minimum is 100ms
         led_strip.wait_ms = led_strip.duration // led_strip.length
-        led_strip.wait_ms = ((led_strip.wait_ms + (LOOP_MS // 2)) // LOOP_MS) * LOOP_MS
+        led_strip.wait_ms = (led_strip.wait_ms + (LOOP_MS // 2)) // LOOP_MS * LOOP_MS
         if led_strip.wait_ms < LOOP_MS:
             led_strip.wait_ms = LOOP_MS
+        # Calculate the actual duration of the effect, using the calculated
+        # duration for each blink
         led_strip.duration = led_strip.wait_ms * led_strip.length
 
+        # Change the first pixel color to the wipe color
         led_strip.set_pixel_color(led_strip.wipe_color, 0)
+
     elif tokens[0] == "color":
         # The color command sets all of the pixels to the same color.
         # The command requires three integer values: red, green, and blue.
         red, green, blue = params
-        led_strip.fill_pixels( (red, green, blue) )
+        led_strip.fill_pixels((red, green, blue))
 
     elif tokens[0] == "pulse":
         # The pulse command changes the brightness of all pixels so they are
@@ -152,7 +168,7 @@ def process_command(command, led_strip):
 
         led_strip.is_pulsing = True
         led_strip.pulse_rising = False
-        led_strip.fill_pixels( (red, green, blue) )
+        led_strip.fill_pixels((red, green, blue))
 
     else:
         errno = 1
@@ -166,6 +182,7 @@ def strip_driver(command_queue, led_count, spi_bus, spi_dev):
 
     It waits until a command is received or the queue "get" times out.
     If the "get" times out then we handle a single step of any current effect.
+    This is an infinite loop.
     """
     # Create and initialize an LED strip
     led_strip = DotstarStrip(led_count, spi_bus, spi_dev)
@@ -173,46 +190,58 @@ def strip_driver(command_queue, led_count, spi_bus, spi_dev):
 
     # loop forever
     while True:
-        # Wait up to 0.1s for a command.
+        # Wait up to LOOP_MS for a command.
         try:
-            command = command_queue.get(True, 0.1)
+            command = command_queue.get(True, (LOOP_MS / 1000))
             process_command(command, led_strip)
             command_queue.task_done()
         except:
             if led_strip.is_blinking:
+                # Are we done blinking?
                 if led_strip.effect_time < led_strip.duration:
+                    # Is the current effect time an even or odd multiple of the
+                    # wait_ms time? If even, go to low brightness level.
                     if (led_strip.effect_time // led_strip.wait_ms) % 2 == 0:
                         led_strip.set_brightness(MIN_PULSE_BRIGHTNESS)
+                    # If odd, go to high brightness level.
                     else:
                         led_strip.set_brightness(MAX_PULSE_BRIGHTNESS)
 
                     led_strip.effect_time = led_strip.effect_time + LOOP_MS
+                # Done blinking.
                 else:
                     led_strip.is_blinking = False
 
             if led_strip.is_wiping:
+                # Are we done wiping?
                 if led_strip.effect_time < led_strip.duration:
+                    # After each wait_ms we change the color of the next LED
                     index = led_strip.effect_time // led_strip.wait_ms
                     led_strip.set_pixel_color(led_strip.wipe_color, index)
                     led_strip.effect_time = led_strip.effect_time + LOOP_MS
+                # Done wiping. Maker sure all LEDs have the final color.
                 else:
                     led_strip.is_wiping = False
                     led_strip.fill_pixels(led_strip.wipe_color)
 
             if led_strip.is_pulsing:
-                # All pixels will have the same brightness
-                # Is this OK?
+                # All pixels will have the same brightness. Get that value from
+                # pixel 0
                 brightness = led_strip.brightness[0]
+                # If getting brighter, add to the brightness
                 if led_strip.pulse_rising:
                     brightness += PULSE_BRIGHTNESS_STEP
                     if brightness >= MAX_PULSE_BRIGHTNESS:
                         led_strip.pulse_rising = False
                         brightness = MAX_PULSE_BRIGHTNESS
+                # If getting darker, subtract from the brightness
                 else:
                     brightness -= PULSE_BRIGHTNESS_STEP
                     if brightness <= MIN_PULSE_BRIGHTNESS:
                         led_strip.pulse_rising = True
                         brightness = MIN_PULSE_BRIGHTNESS
+                # Set all pixels to the new brightness level.
                 led_strip.set_brightness(brightness)
 
+            # Send the new brightness and color values out to the Dotstars
             led_strip.show()
