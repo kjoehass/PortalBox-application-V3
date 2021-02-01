@@ -4,6 +4,7 @@
 # simple API to the hardware
 
 # from standard library
+import os
 import logging
 from time import sleep
 
@@ -58,6 +59,7 @@ class PortalBox:
 
         # Create display controller
         if self.is_pi_zero_w:
+            logging.debug("Creating display controller")
             from .display.DotstarController import DotstarController
 
             self.display_controller = DotstarController()
@@ -68,6 +70,7 @@ class PortalBox:
             self.display_controller = None
 
         # Create a proxy for the RFID card reader
+        logging.debug("Creating RFID reader")
         self.RFIDReader = MFRC522()
 
         # set up some state
@@ -80,9 +83,14 @@ class PortalBox:
         @param (boolean) state - True to turn on power to equipment, False to
             turn off power to equipment
         """
-        ## Turn off power to SSR
+        logging.info("Turning on/off equipment power and interlock")
+        if state:
+            os.system("echo True > /tmp/running")
+        else:
+            os.system("echo False > /tmp/running")
+        ## Turn on/off power to SSR
         GPIO.output(GPIO_SOLID_STATE_RELAY_PIN, state)
-        ## Open interlock
+        ## Open/close interlock
         if self.is_pi_zero_w:
             GPIO.output(GPIO_INTERLOCK_PIN, state)
         else:
@@ -117,6 +125,7 @@ class PortalBox:
             successful read, -1 otherwise
         """
         # Scan for cards
+
         (status, TagType) = self.RFIDReader.MFRC522_Request(MFRC522.PICC_REQIDL)
         logging.debug("MFRC522 Request returned: %s, %s", status, TagType)
 
@@ -138,6 +147,8 @@ class PortalBox:
     def wake_display(self):
         if self.display_controller:
             self.display_controller.wake_display()
+        else:
+            logging.info("PortalBox wake_display failed")
 
     def sleep_display(self):
         """
@@ -147,6 +158,8 @@ class PortalBox:
         """
         if self.display_controller:
             self.display_controller.sleep_display()
+        else:
+            logging.info("PortalBox sleep_display failed")
 
     def set_display_color(self, color=BLACK):
         """
@@ -156,6 +169,8 @@ class PortalBox:
         self.wake_display()
         if self.display_controller:
             self.display_controller.set_display_color(color)
+        else:
+            logging.info("PortalBox set_display_color failed")
 
     def set_display_color_wipe(self, color=BLACK, duration=1000):
         """
@@ -173,8 +188,12 @@ class PortalBox:
         self.wake_display()
         if self.display_controller:
             self.display_controller.flash_display(color, duration, flashes, end_color)
+        else:
+            logging.info("PortalBox flash_display failed")
 
     def cleanup(self):
+        logging.info("PortalBox.cleanup() starts")
+        os.system("echo False > /tmp/running")
         self.set_buzzer(False)
         self.set_display_color()
         GPIO.cleanup()
