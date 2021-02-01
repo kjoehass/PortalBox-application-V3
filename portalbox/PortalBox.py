@@ -23,15 +23,16 @@ GPIO_BUZZER_PIN = 33
 GPIO_BUTTON_PIN = 35
 GPIO_SOLID_STATE_RELAY_PIN = 37
 
+
 # Utility functions
 def get_revision():
-    file = open("/proc/cpuinfo", "r")
-    for line in file:
-        if "Revisio" in line:
-            file.close()
+        file = open("/proc/cpuinfo","r")
+        for line in file:
+            if "Revisio" in line:
+                file.close()
             return line.rstrip().split(" ")[1]
-    file.close()
-    return -1
+        file.close()
+        return -1
 
 
 class PortalBox:
@@ -40,7 +41,7 @@ class PortalBox:
     """
 
     def __init__(self):
-        # detect raspberry pi version
+        #detect raspberry pi version
         self.is_pi_zero_w = REVISION_ID_RASPBERRY_PI_0_W == get_revision()
 
         ## set GPIO to known good state
@@ -76,6 +77,7 @@ class PortalBox:
         # set up some state
         self.sleepMode = False
 
+
     def set_equipment_power_on(self, state):
         """
         Turn on/off power to the attached equipment by swithing on/off relay
@@ -96,12 +98,14 @@ class PortalBox:
         else:
             GPIO.output(GPIO_INTERLOCK_PIN, (not state))
 
+
     def set_buzzer(self, state):
         """
         :param state: True -> Buzzer On; False -> Buzzer Off
         :return: None
         """
         GPIO.output(GPIO_BUZZER_PIN, state)
+
 
     def get_button_state(self):
         """
@@ -112,12 +116,14 @@ class PortalBox:
         else:
             return False
 
+
     def has_button_been_pressed(self):
         """
         Use GPIO event detection to determine if the button has been pressed
         since the last call to this method
         """
         return GPIO.event_detected(GPIO_BUTTON_PIN)
+
 
     def read_RFID_card(self):
         """
@@ -127,7 +133,7 @@ class PortalBox:
         # Scan for cards
 
         (status, TagType) = self.RFIDReader.MFRC522_Request(MFRC522.PICC_REQIDL)
-        logging.debug("MFRC522 Request returned: %s, %s", status, TagType)
+#        logging.debug("MFRC522 Request returned: %s, %s", status, TagType)
 
         if MFRC522.MI_OK == status:
             # Get the UID of the card
@@ -150,6 +156,7 @@ class PortalBox:
         else:
             logging.info("PortalBox wake_display failed")
 
+
     def sleep_display(self):
         """
         Sets LED display to indicate the box is in a low power mode
@@ -161,7 +168,8 @@ class PortalBox:
         else:
             logging.info("PortalBox sleep_display failed")
 
-    def set_display_color(self, color=BLACK):
+
+    def set_display_color(self, color = BLACK):
         """
         Set the entire strip to specified color.
         @param (bytes len 3) color - the color to set. Defaults to LED's off
@@ -172,7 +180,8 @@ class PortalBox:
         else:
             logging.info("PortalBox set_display_color failed")
 
-    def set_display_color_wipe(self, color=BLACK, duration=1000):
+
+    def set_display_color_wipe(self, color = BLACK, duration = 1000):
         """
         Set the entire strip to specified color using a "wipe" effect.
         @param (bytes len 3) color - the color to set. Defaults to LED's off
@@ -182,14 +191,18 @@ class PortalBox:
         self.wake_display()
         if self.display_controller:
             self.display_controller.set_display_color_wipe(color, duration)
+        else:
+            logging.info("PortalBox color_wipe failed")
 
-    def flash_display(self, color, duration=1000, flashes=5, end_color=BLACK):
+
+    def flash_display(self, color, duration=1000, flashes=5, end_color = BLACK):
         """Flash color across all display pixels multiple times."""
         self.wake_display()
         if self.display_controller:
             self.display_controller.flash_display(color, duration, flashes, end_color)
         else:
             logging.info("PortalBox flash_display failed")
+
 
     def cleanup(self):
         logging.info("PortalBox.cleanup() starts")
