@@ -61,6 +61,7 @@ class Database:
         '''
         Closes the encapsulated database connection
         '''
+        logging.debug("Closing DB connection")
         if self._connection:
             self._connection.close()
 
@@ -105,6 +106,7 @@ class Database:
                 connection = self._connect()
 
             # Send query
+            logging.debug("Sending is_registered query to database")
             query = ("SELECT count(id) FROM equipment WHERE mac_address = %s")
             cursor = connection.cursor()
             cursor.execute(query, (mac_address,))
@@ -112,6 +114,7 @@ class Database:
             # Interpret result
             (registered,) = cursor.fetchone()
             cursor.close()
+            logging.debug("Finished is_registered query")
             if not self.use_persistent_connection:
                 connection.close()
         except mysql.connector.Error as err:
@@ -136,6 +139,7 @@ class Database:
                 connection = self._connect()
 
             # Send query
+            logging.debug("Sending new box register query to database")
             query = ("INSERT INTO equipment (name, type_id, mac_address, location_id) VALUES ('New Portal Box', 1, %s, 1)")
             cursor = connection.cursor()
             cursor.execute(query, (mac_address,))
@@ -145,6 +149,7 @@ class Database:
 
             connection.commit()
             cursor.close()
+            logging.debug("Finished new box register query")
             if not self.use_persistent_connection:
                 connection.close()
         except mysql.connector.Error as err:
@@ -161,7 +166,7 @@ class Database:
         (int)equipment type id, (str)equipment type, (int)location id,
         (str)location, (int)time limit in minutes
         '''
-        logging.debug("Querying database for equipment profile")
+        logging.info("Querying database for equipment profile")
 
         profile = (-1, -1, None, -1, None, -1)
         connection = self._connection
@@ -185,9 +190,9 @@ class Database:
             if 0 < cursor.rowcount:
                 # Interpret result
                 profile = cursor.fetchone()
-                logging.debug("Fetched equipment profile")
+                logging.info("Fetched equipment profile")
             else:
-                logging.debug("Failed to fetch equipment profile")
+                logging.info("Failed to fetch equipment profile")
             cursor.close()
             if not self.use_persistent_connection:
                 connection.close()
@@ -212,6 +217,7 @@ class Database:
             else:
                 connection = self._connect()
 
+            logging.debug("Sending log_started_status query to database")
             query = ("INSERT INTO log(event_type_id, equipment_id) "
                 "(SELECT id, %s FROM event_types "
                 "WHERE name = 'Startup Complete')")
@@ -223,6 +229,7 @@ class Database:
             cursor.close()
             if not self.use_persistent_connection:
                 connection.close()
+            logging.debug("Finished log_started_status query")
         except mysql.connector.Error as err:
             logging.error("{}".format(err))
 
@@ -244,6 +251,7 @@ class Database:
             else:
                 connection = self._connect()
 
+            logging.debug("Sending log_shutdown_status query to database")
             if card_id:
                 query = ("INSERT INTO log(event_type_id, equipment_id, card_id) "
                     "(SELECT id, %s, %s FROM event_types "
@@ -262,6 +270,7 @@ class Database:
             cursor.close()
             if not self.use_persistent_connection:
                 connection.close()
+            logging.debug("Finished log_shutdown_status query")
         except mysql.connector.Error as err:
             logging.error("{}".format(err))
 
@@ -269,7 +278,7 @@ class Database:
     def log_access_attempt(self, card_id, equipment_id, successful):
         '''
         Logs start time for user using a resource.
-        
+
         @param card_id: The ID read from the card presented by the user
         @param equipment_id: The ID assigned to the portal box
         @param successful: If login was successful (user is authorized)
@@ -283,6 +292,7 @@ class Database:
             else:
                 connection = self._connect()
 
+            logging.debug("Sending log_access_attempt query to database")
             query = ("CALL log_access_attempt(%s, %s, %s)")
             cursor = connection.cursor()
             cursor.execute(query, (successful, card_id, equipment_id))
@@ -292,6 +302,7 @@ class Database:
             cursor.close()
             if not self.use_persistent_connection:
                 connection.close()
+            logging.debug("Finished log_access_attempt")
         except mysql.connector.Error as err:
             logging.error("{}".format(err))
 
@@ -299,7 +310,7 @@ class Database:
     def log_access_completion(self, card_id, equipment_id):
         '''
         Logs end time for user using a resource.
-        
+
         @param card_id: The ID read from the card presented by the user
         @param equipment_id: The ID assigned to the portal box
         @param successful: If login was successful (user is authorized)
@@ -313,6 +324,7 @@ class Database:
             else:
                 connection = self._connect()
 
+            logging.debug("Sending log_access_completion query to database")
             query = ("CALL log_access_completion(%s, %s)")
             cursor = connection.cursor()
 
@@ -321,6 +333,7 @@ class Database:
             cursor.close()
             if not self.use_persistent_connection:
                 connection.close()
+            logging.debug("Finished log_access_completion query")
         except mysql.connector.Error as err:
             logging.error("{}".format(err))
 
@@ -340,43 +353,57 @@ class Database:
             else:
                 connection = self._connect()
 
+            logging.debug("Sending requires_training, charge_policy query to database")
             query = ("SELECT requires_training, charge_policy_id > 2 FROM equipment_types WHERE id = %s")
             cursor = connection.cursor()
             cursor.execute(query, (equipment_type_id,))
-            
+            logging.debug("Finished requires_training, charge_policy query")
+
             (requires_training,requires_payment) = cursor.fetchone()
             if requires_training and requires_payment:
+                logging.debug("Equipment requires training and payment")
                 # check balance
+                logging.debug("Sending get_user_balance query")
                 query = ("SELECT get_user_balance_for_card(%s)")
                 cursor.execute(query, (card_id,))
                 (balance,) = cursor.fetchone()
+                logging.debug("Got balance")
                 if 0.0 < balance:
                     # balance okay check authorization
+                    logging.debug("Sending check_authorization query")
                     query = ("SELECT count(u.id) FROM users_x_cards AS u "
                     "INNER JOIN authorizations AS a ON a.user_id= u.user_id "
                     "WHERE u.card_id = %s AND a.equipment_type_id = %s")
                     cursor.execute(query, (card_id, equipment_type_id))
                     (count,) = cursor.fetchone()
+                    logging.debug("Got authorization")
                     if 0 < count:
                         is_authorized = True
             elif requires_training and not requires_payment:
+                logging.debug("Equipment requires training but no payment")
+                logging.debug("Sending check_authorization query")
                 query = ("SELECT count(u.id) FROM users_x_cards AS u "
                 "INNER JOIN authorizations AS a ON a.user_id= u.user_id "
                 "WHERE u.card_id = %s AND a.equipment_type_id = %s")
                 cursor.execute(query, (card_id, equipment_type_id))
                 (count,) = cursor.fetchone()
+                logging.debug("Got authorization")
                 if 0 < count:
                     is_authorized = True
             elif not requires_training and requires_payment:
+                logging.debug("Equipment requires payment but no training")
                 # check balance
+                logging.debug("Sending get_user_balance query")
                 query = ("SELECT get_user_balance_for_card(%s)")
                 cursor.execute(query, (card_id,))
                 (balance,) = cursor.fetchone()
+                logging.debug("Got balance")
                 if 0.0 < balance:
                     is_authorized = True
             else:
                 # we don't require payment or training, user is implicitly authorized
-                is_authorized = True           
+                logging.debug("Equipment requires no payment, no training")
+                is_authorized = True
 
             cursor.close()
             if not self.use_persistent_connection:
@@ -386,13 +413,12 @@ class Database:
 
         return is_authorized
 
-
     def get_card_type(self, id):
         '''
         Get the type of the card identified by id
 
         @return an integer: -1 for card not found, 1 for shutdown card, 2 for
-            proxy card, 3 for training card, and 4 for user card 
+            proxy card, 3 for training card, and 4 for user card
         '''
         type_id = -1
         connection = self._connection
@@ -404,6 +430,7 @@ class Database:
             else:
                 connection = self._connect()
 
+            logging.debug("Sending card type query to database")
             query = ("SELECT type_id FROM cards WHERE id = %s")
 
             cursor = connection.cursor(buffered = True) # we want rowcount to be available
@@ -412,13 +439,13 @@ class Database:
             if 0 < cursor.rowcount:
                 (type_id,) = cursor.fetchone()
             cursor.close()
+            logging.debug("Finished card type query")
             if not self.use_persistent_connection:
                 connection.close()
         except mysql.connector.Error as err:
             logging.error("{}".format(err))
 
         return type_id
-
 
     def is_training_card_for_equipment_type(self, id, type_id):
         '''
@@ -436,6 +463,7 @@ class Database:
                 connection = self._connect()
 
             # Send query
+            logging.debug("Sending is_training_card query to database")
             query = ("SELECT count(id) FROM equipment_type_x_cards "
                 "WHERE card_id = %s AND equipment_type_id = %s")
             cursor = connection.cursor()
@@ -444,6 +472,7 @@ class Database:
             # Interpret result
             (valid,) = cursor.fetchone()
             cursor.close()
+            logging.debug("Finished is_training_card query")
             if not self.use_persistent_connection:
                 connection.close()
         except mysql.connector.Error as err:
@@ -451,7 +480,7 @@ class Database:
 
         return valid
 
- 
+
     def get_user(self, id):
         '''
         Get details for the user identified by (card) id
@@ -468,6 +497,7 @@ class Database:
             else:
                 connection = self._connect()
 
+            logging.debug("Sending get_user query to database")
             query = ("SELECT u.name, u.email FROM users_x_cards AS c "
                 "JOIN users AS u ON u.id = c.user_id WHERE c.card_id = %s")
 
@@ -476,6 +506,7 @@ class Database:
 
             user = cursor.fetchone()
             cursor.close()
+            logging.debug("Finished get_user query")
             if not self.use_persistent_connection:
                 connection.close()
         except mysql.connector.Error as err:

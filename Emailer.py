@@ -35,6 +35,7 @@ class Emailer:
         if 'reply_to' in self.settings:
             message.add_header('reply-to', self.settings['reply_to'])
 
+        logging.debug("Creating SMTP server")
         server = smtplib.SMTP(self.settings['smtp_server'], int(self.settings['smtp_port']))
         context = ssl.create_default_context()
         if 'my_smtp_server_uses_a_weak_certificate' in self.settings:
