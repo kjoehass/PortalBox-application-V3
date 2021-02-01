@@ -1,0 +1,37 @@
+Copy new python files to /opt/portalbox
+  Make them root,root
+Copy repair to /usr/bin/repair
+  Make it root,root
+  chmod a+rx
+
+Add dtparam=sd_debug=on to /boot/config.txt NO! VERBOSE!
+
+Enable watchdog timer
+  Add dtparam=watchdog=on to /boot/config.txt
+  reboot
+  sudo apt-get update
+  sudo apt-get install watchdog
+  Create /etc/watchdog.conf and add/uncomment these lines
+    file=/tmp/boxactivity
+    change=600
+    watchdog-device = /dev/watchdog
+    watchdog-timeout = 15
+    max-load-1 = 24
+    interface = wlan0 (check /proc/net/dev)
+    repair-binary=/usr/sbin/repair
+    repair-timeout=60
+    interval=5
+    logtick=1
+    realtime=yes
+    priority=1
+    retry-timeout=10
+    repair-maximum=2
+  Make watchdog.conf root,root
+    
+    
+  Start the service
+    sudo systemctl enable watchdog
+    sudo systemctl start watchdog
+  Check the status
+    sudo systemctl status watchdog
+
