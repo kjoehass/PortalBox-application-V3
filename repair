@@ -1,0 +1,9 @@
+#!/bin/bash
+
+systemctl stop portal-box
+systemd-cat --priority=warning --identifier=portal-box cat /tmp/boxactivity
+
+echo Repair > /tmp/boxactivity
+echo False > /tmp/running
+
+systemctl start portal-box
