@@ -102,8 +102,6 @@ class DotstarController(AbstractController):
         duration - how long, in milliseconds, the effect is to take
         """
         AbstractController.set_display_color_wipe(self, color, duration)
-#        if duration > int(self._controller.timeout * 1000):
-#            self._controller.timeout = duration / 1000
 
         command = "wipe {} {} {} {}\n".format(color[0],
                                               color[1],
@@ -114,8 +112,6 @@ class DotstarController(AbstractController):
 
     def flash_display(self, flash_color, duration, flashes=5, end_color=BLACK):
         """Flash color across all display pixels multiple times."""
-        #        if duration > int(self._controller.timeout * 1000):
-        #            self._controller.timeout = duration / 1000
 
         command = "blink {} {} {} {} {}\n".format(flash_color[0],
                                                   flash_color[1],
