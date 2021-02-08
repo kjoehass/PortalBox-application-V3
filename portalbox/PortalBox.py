@@ -30,7 +30,7 @@ def get_revision():
         for line in file:
             if "Revisio" in line:
                 file.close()
-            return line.rstrip().split(" ")[1]
+                return line.rstrip().split(" ")[1]
         file.close()
         return -1
 
