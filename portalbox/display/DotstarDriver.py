@@ -36,10 +36,10 @@ class DotstarStrip:
         self.pulse_rising = False
 
         self.is_blinking = False
-        self.blink_color = Black
+        self.blink_color = BLACK
 
         self.is_wiping = False
-        self.wipe_color = Black
+        self.wipe_color = BLACK
 
         self.total_duration = 0
         self.step_ms = 0
