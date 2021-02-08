@@ -106,7 +106,7 @@ def process_command(command, led_strip):
 
     # get command part of string and determine if it is recognized
     if tokens[0] == "blink":
-    # Receiving a blink command aborts wiping or pulsing
+        # Receiving a blink command aborts wiping or pulsing
         led_strip.is_wiping = False
         led_strip.is_pulsing = False
         # the blink command requires a color tuple, a duration (ms),
@@ -120,7 +120,7 @@ def process_command(command, led_strip):
         # a blink starts will all pixels dark
         led_strip.set_brightness(MIN_PULSE_BRIGHTNESS)
         # Calculate the time for each half-blink, round to nearest loop
-        # duration
+        # duration. This is integer math!
         led_strip.wait_ms = led_strip.duration // (2 * led_strip.repeats)
         led_strip.wait_ms = (led_strip.wait_ms + (LOOP_MS // 2)) // LOOP_MS * LOOP_MS
         if led_strip.wait_ms < LOOP_MS:
@@ -145,7 +145,7 @@ def process_command(command, led_strip):
         led_strip.effect_time = 0
 
         # Calculate the time for each half-blink, round to nearest 100ms,
-        # minimum is 100ms
+        # minimum is 100ms. This is integer math!
         led_strip.wait_ms = led_strip.duration // led_strip.length
         led_strip.wait_ms = (led_strip.wait_ms + (LOOP_MS // 2)) // LOOP_MS * LOOP_MS
         if led_strip.wait_ms < LOOP_MS:
@@ -160,10 +160,20 @@ def process_command(command, led_strip):
     elif tokens[0] == "color":
         # Receiving a color command aborts wiping in process
         led_strip.is_wiping = False
-        led_strip.set_brightness(DEFAULT_BRIGHTNESS)
+
         # The color command sets all of the pixels to the same color.
         # The command requires three integer values: red, green, and blue.
         red, green, blue = params
+
+        # Setting the color to black aborts all other effects
+        if (red, green, blue) == BLACK:
+            led_strip.is_blinking = False
+            led_strip.is_pulsing = False
+
+        # Go to default brightness if no other effect in progress
+        if not led_strip.is_blinking and not led_strip.is_pulsing:
+            led_strip.set_brightness(DEFAULT_BRIGHTNESS)
+
         led_strip.fill_pixels((red, green, blue))
 
     elif tokens[0] == "pulse":
@@ -177,7 +187,7 @@ def process_command(command, led_strip):
         led_strip.fill_pixels((red, green, blue))
 
         # If already pulsing then only the color can change, else initialize
-        # all pulse parameters
+        # all pulse parameters.
         if not led_strip.is_pulsing:
             led_strip.set_brightness(DEFAULT_BRIGHTNESS)
             led_strip.is_pulsing = True
