@@ -100,25 +100,25 @@ def process_command(command, led_strip):
     """
     errno = 0
 
-    # Receiving a new command aborts any command in process
-    led_strip.is_blinking = False
-    led_strip.is_wiping = False
-    led_strip.is_pulsing = False
-    led_strip.set_brightness(DEFAULT_BRIGHTNESS)
-    led_strip.effect_time = 0
-
     # split the string into a list of tokens
     tokens = command.split()
     params = [int(token) for token in tokens[1:]]
 
     # get command part of string and determine if it is recognized
     if tokens[0] == "blink":
+    # Receiving a blink command aborts wiping or pulsing
+        led_strip.is_wiping = False
+        led_strip.is_pulsing = False
         # the blink command requires a color tuple, a duration (ms),
         # and a repeat count as inputs
         red, green, blue, led_strip.duration, led_strip.repeats = params
         led_strip.fill_pixels((red, green, blue))
         led_strip.is_blinking = True
 
+        # Initialize effect parameters
+        led_strip.effect_time = 0
+        # a blink starts will all pixels dark
+        led_strip.set_brightness(MIN_PULSE_BRIGHTNESS)
         # Calculate the time for each half-blink, round to nearest loop
         # duration
         led_strip.wait_ms = led_strip.duration // (2 * led_strip.repeats)
@@ -130,16 +130,19 @@ def process_command(command, led_strip):
         # duration for each blink
         led_strip.duration = led_strip.wait_ms * 2 * led_strip.repeats
 
-        # a blink starts will all pixels dark
-        led_strip.set_brightness(MIN_PULSE_BRIGHTNESS)
-
     elif tokens[0] == "wipe":
+        # Receiving a wipe command aborts blinking or pulsing
+        led_strip.is_blinking = False
+        led_strip.is_pulsing = False
         # The wipe command changes the pixel colors one pixel at a time.
         # The command requires four integer values: red, green, blue, and
         # duration. Duration is milliseconds.
         red, green, blue, led_strip.duration = params
         led_strip.wipe_color = (red, green, blue)
+
         led_strip.is_wiping = True
+        led_strip.set_brightness(DEFAULT_BRIGHTNESS)
+        led_strip.effect_time = 0
 
         # Calculate the time for each half-blink, round to nearest 100ms,
         # minimum is 100ms
@@ -155,21 +158,30 @@ def process_command(command, led_strip):
         led_strip.set_pixel_color(led_strip.wipe_color, 0)
 
     elif tokens[0] == "color":
+        # Receiving a color command aborts wiping in process
+        led_strip.is_wiping = False
+        led_strip.set_brightness(DEFAULT_BRIGHTNESS)
         # The color command sets all of the pixels to the same color.
         # The command requires three integer values: red, green, and blue.
         red, green, blue = params
         led_strip.fill_pixels((red, green, blue))
 
     elif tokens[0] == "pulse":
+        # Receiving a pulse command aborts blinking or wiping
+        led_strip.is_blinking = False
+        led_strip.is_wiping = False
         # The pulse command changes the brightness of all pixels so they are
         # pulsing. The pulse rate is hard coded using constant parameters.
         # The command requires three integer values: red, green, and blue.
         red, green, blue = params
-
-        led_strip.is_pulsing = True
-        led_strip.pulse_rising = False
         led_strip.fill_pixels((red, green, blue))
 
+        # If already pulsing then only the color can change, else initialize
+        # all pulse parameters
+        if not led_strip.is_pulsing:
+            led_strip.set_brightness(DEFAULT_BRIGHTNESS)
+            led_strip.is_pulsing = True
+            led_strip.pulse_rising = False
     else:
         errno = 1
 
@@ -199,8 +211,8 @@ def strip_driver(command_queue, led_count, spi_bus, spi_dev):
             if led_strip.is_blinking:
                 # Are we done blinking?
                 if led_strip.effect_time < led_strip.duration:
-                    # Is the current effect time an even or odd multiple of the
-                    # wait_ms time? If even, go to low brightness level.
+                    # Is the current effect time an even or odd multiple of
+                    # the wait_ms time? If even, go to low brightness level.
                     if (led_strip.effect_time // led_strip.wait_ms) % 2 == 0:
                         led_strip.set_brightness(MIN_PULSE_BRIGHTNESS)
                     # If odd, go to high brightness level.
@@ -225,8 +237,8 @@ def strip_driver(command_queue, led_count, spi_bus, spi_dev):
                     led_strip.fill_pixels(led_strip.wipe_color)
 
             if led_strip.is_pulsing:
-                # All pixels will have the same brightness. Get that value from
-                # pixel 0
+                # All pixels will have the same brightness. Get that value
+                # from pixel 0
                 brightness = led_strip.brightness[0]
                 # If getting brighter, add to the brightness
                 if led_strip.pulse_rising:
