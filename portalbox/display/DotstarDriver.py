@@ -1,3 +1,12 @@
+"""
+2021-05-26 Version   KJHass
+  - Change end frame for Dotstar compatibility issue
+    https://cpldcpu.wordpress.com/2016/12/13/sk9822-a-clone-of-the-apa102/
+"""
+import logging
+import os
+import signal
+
 import multiprocessing
 import time
 import spidev
@@ -8,8 +17,9 @@ DEFAULT_BRIGHTNESS = 16
 MAX_PULSE_BRIGHTNESS = 30
 MIN_PULSE_BRIGHTNESS = 3
 PULSE_BRIGHTNESS_STEP = 2
-# Legacy definition of color black
+# Color definitions
 BLACK = (0, 0, 0)
+DARKRED = (16, 0, 0)
 
 # The driver runs in an infinite loop, checking for new commands or updating
 # the pixels. This is the duration of each loop, in milliseconds.
@@ -25,6 +35,7 @@ class DotstarStrip:
     """
 
     def __init__(self, length, spi_bus, spi_device):
+        logging.info("DRVR Creating DotstarStrip")
         # number of pixels in the strip
         self.length = length
         # each pixel has its own brightness and color tuple
@@ -44,6 +55,11 @@ class DotstarStrip:
         self.total_duration = 0
         self.step_ms = 0
         self.effect_time = 0
+
+        # Create signal handlers
+        signal.signal(signal.SIGTERM, self.catch_signal)
+        signal.signal(signal.SIGINT, self.catch_signal)
+        self.signalled = False
 
         # Connect this driver to a specific SPI interface, which should
         # have been enabled in /boot/config.txt
@@ -88,8 +104,12 @@ class DotstarStrip:
                     self.led_colors[pixel][1],
                 ]
             )
-        self.spi.writebytes([0xFF] * 4)  # end frame
+        self.spi.writebytes([0x00] * 4)  # SK9822 frame
+        self.spi.writebytes([0x00] * (self.length // 16 + 1))  # end frame
 
+    def catch_signal(self, signum, frame):
+        logging.info("DRVR caught signal")
+        self.signalled = True
 
 def process_command(command, led_strip):
     """
@@ -103,6 +123,8 @@ def process_command(command, led_strip):
     # split the string into a list of tokens
     tokens = command.split()
     params = [int(token) for token in tokens[1:]]
+
+    logging.info("DRVR received command")
 
     # get command part of string and determine if it is recognized
     if tokens[0] == "blink":
@@ -210,8 +232,8 @@ def strip_driver(command_queue, led_count, spi_bus, spi_dev):
     led_strip = DotstarStrip(led_count, spi_bus, spi_dev)
     led_strip.show()
 
-    # loop forever
-    while True:
+    # loop forever (until OS kills us)
+    while not led_strip.signalled:
         # Wait up to LOOP_MS for a command.
         try:
             command = command_queue.get(True, (LOOP_MS / 1000))
@@ -267,3 +289,13 @@ def strip_driver(command_queue, led_count, spi_bus, spi_dev):
 
             # Send the new brightness and color values out to the Dotstars
             led_strip.show()
+
+    # Caught TERM or KILL from OS
+    # Set the LEDs to a dim red
+    logging.info("DRVR stopping")
+    led_strip.brightness = [MIN_PULSE_BRIGHTNESS] * led_strip.length
+    led_strip.led_colors = [DARKRED] * led_strip.length
+    led_strip.is_pulsing = False
+    led_strip.is_blinking = False
+    led_strip.is_wiping = False
+    led_strip.show()
