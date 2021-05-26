@@ -60,6 +60,7 @@ class PortalBoxApplication:
         os.system("echo False > /tmp/running")
 
         # Step 1 Do a bit of a dance to show we are running
+        logging.info("Setting display color to wipe red")
         self.box.set_display_color_wipe(RED, 10)
         logging.info("Started PortalBoxApplication.run()")
         
@@ -79,7 +80,7 @@ class PortalBoxApplication:
 
         # be prepared to send emails
         try:
-            logging.debug("Creating emailer instance")
+            logging.info("Creating emailer instance")
             self.emailer = Emailer(self.settings['email'])
             logging.info("Cached email settings")
         except Exception as e:
@@ -88,6 +89,7 @@ class PortalBoxApplication:
             sys.exit(1)
 
         # give user hint we are makeing progress 
+        logging.debug("Setting display color to wipe orange")
         self.box.set_display_color_wipe(ORANGE, 10)
 
         # determine what we are
@@ -95,7 +97,7 @@ class PortalBoxApplication:
         self.running = True
         while self.running and 0 > profile[0]:
             os.system("echo equipment_profile > /tmp/boxactivity")
-            logging.info("Trying to get equipment profile")
+            logging.info("Trying to get equipment profile from DB")
             profile = self.db.get_equipment_profile(mac_address)
             if 0 > profile[0]:
                 sleep(10)
@@ -116,9 +118,13 @@ class PortalBoxApplication:
             self.location = profile[4]
             self.timeout_period = profile[5]
 
-            logging.info("Discovered identity. Type: %s(%s) Timeout period: %s", profile[2], self.equipment_type_id, self.timeout_period)
+            logging.info("Discovered identity. Type: %s(%s) Timeout: %s",
+                    self.equipment_type,
+                    self.equipment_type_id,
+                    self.timeout_period)
             self.db.log_started_status(self.equipment_id)
 
+            logging.debug("Setting display color to wipe green")
             self.box.set_display_color_wipe(GREEN, 10)
             self.timeout_period *= 60 # python threading wants seconds, DB has minutes
             self.proxy_uid = -1
@@ -134,6 +140,7 @@ class PortalBoxApplication:
         '''
         Wait for a card and if we read a card decide what to do
         '''
+        logging.debug("Setting display to sleep display")
         self.box.sleep_display()
         # Run... loop endlessly waiting for RFID cards
         logging.debug("Waiting for an access card")
@@ -142,33 +149,44 @@ class PortalBoxApplication:
             # Scan for card
             uid = self.box.read_RFID_card()
             if -1 < uid:
-                logging.debug("Detected a card")
+                logging.debug("Detected a card, getting type from DB")
                 # we read a card... decide what to do
                 card_type = self.db.get_card_type(uid)
                 logging.debug("Card of type: %s was presented", card_type)
                 if Database.SHUTDOWN_CARD == card_type:
-                    logging.info("Shutdown Card: %s detected, triggering box shutdown", uid)
+                    logging.info("Shutdown card %s detected, shutting down", uid)
                     self.db.log_shutdown_status(self.equipment_id, uid)
+                    logging.debug("Blanking display")
                     self.box.set_display_color()
-                    os.system("shutdown -h now")
+                    logging.debug("Telling OS to shut down")
+                    os.system("sync; shutdown -h now")
                 elif Database.TRAINING_CARD == card_type:
+                    logging.info("Training card %s detected, authorized?", uid)
                     if self.db.is_training_card_for_equipment_type(uid, self.equipment_type_id):
-                        logging.info("Trainer identitfied by card: %s is authorized to use equipment", uid)
+                        logging.info("Trainer %s authorized for %s",
+                                      uid, self.equipment_type)
                         self.training_mode = True
                         self.run_session(uid)
                         self.training_mode = False
                     else:
                         self.wait_for_unauthorized_card_removal(uid)
+                    logging.debug("Done with training card, start sleep display")
                     self.box.sleep_display()
                 elif Database.USER_CARD == card_type:
+                    logging.info("User card %s detected, authorized?", uid)
                     if self.db.is_user_authorized_for_equipment_type(uid, self.equipment_type_id):
-                        logging.info("User identitfied by card: %s is authorized to use equipment", uid)
+                        logging.info("User %s authorized for %s",
+                                uid,
+                                self.equipment_type)
                         self.run_session(uid)
                     else:
                         self.wait_for_unauthorized_card_removal(uid)
+                    logging.debug("Done with user card, start sleep display")
                     self.box.sleep_display()
                 else:
+                    logging.info("Unknown card %s detected", uid)
                     self.wait_for_unauthorized_card_removal(uid)
+                    logging.debug("Done with unauthorized card, start sleep display")
                     self.box.sleep_display()
 
             sleep(0.2)
@@ -178,29 +196,41 @@ class PortalBoxApplication:
         '''
         Allow user to use the equipment
         '''
-        logging.info("Logging successful activation of equipment to backend database")
+        logging.info("Logging activation of %s to DB", self.equipment_type)
         self.db.log_access_attempt(user_id, self.equipment_id, True)
         self.authorized_uid = user_id
+
+        self.box.set_buzzer(True)
+        sleep(0.05)
+
+        logging.debug("Setting display to green")
         self.box.set_display_color(GREEN)
         self.box.set_equipment_power_on(True)
+
+        self.box.set_buzzer(False)
+
         if 0 < self.timeout_period:
             self.exceeded_time = False
             logging.debug("Starting equipment timer")
             self.activation_timeout = threading.Timer(self.timeout_period, self.timeout)
+            logging.debug("Starting timeout")
             self.activation_timeout.start()
         self.wait_for_authorized_card_removal()
         if not self.exceeded_time and 0 < self.timeout_period:
+            logging.debug("Canceling timeout")
             self.activation_timeout.cancel()
         self.box.set_equipment_power_on(False)
-        logging.info("Logging completion of equipment access to backend database")
+        logging.info("Logging end of %s access to DB", self.equipment_type)
         self.db.log_access_completion(user_id, self.equipment_id)
         self.authorized_uid = -1
+        logging.debug("run_session() ends")
 
 
     def timeout(self):
         '''
         Called by timer thread when usage time is exceeeded
         '''
+        logging.info("Timer timed out")
         self.exceeded_time = True
 
 
@@ -208,12 +238,14 @@ class PortalBoxApplication:
         '''
         Wait for card to be removed
         '''
-        logging.info("Card: %s is NOT authorized to use equipment", uid)
+        logging.info("Card %s NOT authorized for %s", uid, self.equipment_type)
         self.db.log_access_attempt(uid, self.equipment_id, False)
 
-        # We have to have a grace_counter because consecutive card reads currently fail
+        # We need a grace_counter because consecutive card reads fail
         grace_count = 0
+
         #loop endlessly waiting for shutdown or card to be removed
+        logging.debug("Looping until not running or card removed")
         while self.running and grace_count < 2:
             os.system("echo wait_unauth_remove > /tmp/boxactivity")
             # Scan for card
@@ -225,7 +257,9 @@ class PortalBoxApplication:
                 # we did not read a card
                 grace_count += 1
 
+            logging.debug("Setting display to flash red")
             self.box.flash_display(RED, 100, 1, RED)
+        logging.debug("wait_for_unauthorized_card_removal() ends")
 
 
     def wait_for_authorized_card_removal(self):
@@ -244,6 +278,7 @@ class PortalBoxApplication:
             if self.exceeded_time:
                 logging.debug("Time exceeded, wait for timeout grace")
                 self.wait_for_timeout_grace_period_to_expire()
+                logging.debug("Timeout grace period expired")
                 if self.card_present:
                     # User pressed the button return to running
                     logging.debug("Button pressed, restart timeout")
@@ -251,9 +286,12 @@ class PortalBoxApplication:
                     if self.card_present:
                             grace_count = 0
                             if -1 < self.proxy_uid:
+                                logging.debug("Setting display to orange")
                                 self.box.set_display_color(ORANGE)
                             else:
+                                logging.debug("Setting display to green")
                                 self.box.set_display_color(GREEN)
+                    logging.debug("Creating and starting timeout timer")
                     self.activation_timeout = threading.Timer(self.timeout_period, self.timeout)
                     self.activation_timeout.start()
                 else:
@@ -274,13 +312,15 @@ class PortalBoxApplication:
                     if self.card_present:
                         grace_count = 0
                         if -1 < self.proxy_uid:
+                            logging.debug("Setting display to orange")
                             self.box.set_display_color(ORANGE)
                         else:
+                            logging.debug("Setting display to green")
                             self.box.set_display_color(GREEN)
 
             sleep(0.1)
 
-        logging.info("Finished waiting for card removal or timeout")
+        logging.debug("wait_for_authorized_card_removal() ends")
 
 
     def wait_for_user_card_return(self):
@@ -294,11 +334,12 @@ class PortalBoxApplication:
         authorized card back we can toggle the flag back and return which will
         cause the outer loop to continue
         '''
+        logging.info("User card removed")
         self.card_present = False
         self.proxy_uid = -1
+        logging.debug("Setting display to yellow")
         self.box.set_display_color(YELLOW)
         grace_count = 0
-        logging.info("Card Removed")
         self.box.has_button_been_pressed() # clear pending events
         logging.debug("Waiting for card to return")
         while self.running and grace_count < 16:
@@ -319,19 +360,23 @@ class PortalBoxApplication:
                     break
                 elif not self.training_mode: # trainers may not use proxy cards
                     # check if proxy card
+                    logging.debug("Checking if this is a proxy card")
                     if Database.PROXY_CARD == self.db.get_card_type(uid):
                         self.card_present = True
                         self.proxy_uid = uid
                         logging.debug("Trainer using proxy card")
                         break
+                    logging.debug("This is not a proxy card")
 
             grace_count += 1
             self.box.set_buzzer(True)
+            logging.debug("Set display to flash yellow")
             self.box.flash_display(YELLOW, 100, 1, YELLOW)
             self.box.set_buzzer(False)
 
         if self.running and not self.card_present:
             logging.info("Grace period following card removal expired; shutting down equipment")
+        logging.debug("wait_for_user_card_return() ends")
 
 
     def wait_for_timeout_grace_period_to_expire(self):
@@ -345,6 +390,7 @@ class PortalBoxApplication:
         logging.info("Equipment usage timeout")
         grace_count = 0
         self.box.has_button_been_pressed() # clear pending events
+        logging.debug("Setting display to orange")
         self.box.set_display_color(ORANGE)
         logging.debug("Starting grace period")
         while self.running and grace_count < 600:
@@ -367,6 +413,7 @@ class PortalBoxApplication:
                 grace_count += 1
             
             if 1 > (grace_count % 2):
+                logging.debug("Starting to flash display orange")
                 self.box.flash_display(ORANGE, 100, 1, ORANGE)
 
             if 1 > (grace_count % 20):
@@ -390,8 +437,10 @@ class PortalBoxApplication:
         uid2 = self.box.read_RFID_card() #try twice since reader fails consecutive reads
         if -1 < uid or -1 < uid2:
             # Card is still present
-            logging.info("User card was left in portal box. Sending user an email.")
+            logging.info("User card left in portal box. Sending user email.")
+            logging.debug("Setting display to wipe blue")
             self.box.set_display_color_wipe(BLUE, 50)
+            logging.debug("Getting user email ID from DB")
             user = self.db.get_user(self.authorized_uid)
             try:
                 logging.debug("Mailing user")
@@ -399,6 +448,7 @@ class PortalBoxApplication:
             except Exception as e:
                 logging.error("{}".format(e))
 
+            logging.debug("Setting display to red")
             self.box.set_display_color(RED)
             while self.running and self.card_present:
                 os.system("echo user_left_card > /tmp/boxactivity")
@@ -407,10 +457,13 @@ class PortalBoxApplication:
                 uid2 = self.box.read_RFID_card() #try twice since reader fails consecutive reads
                 if 0 > uid and 0 > uid2:
                     self.card_present = False
+            logging.debug("Stopped running or card removed")
         else:
             # Card removed end session
             logging.debug("Card removed, session ends")
             self.card_present = False
+
+        logging.debug("wait_for_timeout_grace_period_to_expire() ends")
 
 
     def exit(self):
@@ -420,10 +473,12 @@ class PortalBoxApplication:
         os.system("echo False > /tmp/running")
         if self.running:
             if self.equipment_id:
+                logging.debug("Logging exit-while-running to DB")
                 self.db.log_shutdown_status(self.equipment_id, False)
             self.running = False
         else:
             # never made it to the run state
+            logging.debug("Not running, just exit")
             sys.exit()
 
 
@@ -431,7 +486,6 @@ class PortalBoxApplication:
         ''' Stop the service from a signal'''
         logging.debug("Interrupted")
         os.system("echo service_interrupt > /tmp/boxactivity")
-        os.system("echo False > /tmp/running")
         self.exit()
 
 
@@ -476,8 +530,10 @@ if __name__ == "__main__":
     # Run service
     logging.debug("Running PortalBoxApplication")
     service.run()
+    logging.debug("PortalBoxApplication ends")
+    self.box.cleanup()
 
     # Cleanup and exit
     os.system("echo False > /tmp/running")
-    logging.debug("Shutting down")
+    logging.debug("Shutting down logger")
     logging.shutdown()
