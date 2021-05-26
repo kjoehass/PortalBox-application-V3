@@ -133,13 +133,10 @@ class PortalBox:
         # Scan for cards
 
         (status, TagType) = self.RFIDReader.MFRC522_Request(MFRC522.PICC_REQIDL)
-#        logging.debug("MFRC522 Request returned: %s, %s", status, TagType)
 
         if MFRC522.MI_OK == status:
             # Get the UID of the card
             (status, uid) = self.RFIDReader.MFRC522_Anticoll()
-            logging.debug("MFRC522 Request returned: %s, %s", status, uid)
-
             if MFRC522.MI_OK == status:
                 # We have the UID, generate unsigned integer
                 # uid is a MSB order byte array of theoretically 4 bytes
@@ -208,5 +205,5 @@ class PortalBox:
         logging.info("PortalBox.cleanup() starts")
         os.system("echo False > /tmp/running")
         self.set_buzzer(False)
-        self.set_display_color()
+        self.display_controller.shutdown_display()
         GPIO.cleanup()
