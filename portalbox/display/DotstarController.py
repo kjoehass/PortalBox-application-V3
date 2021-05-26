@@ -44,7 +44,7 @@ class DotstarController(AbstractController):
 
     def _transmit(self, command):
         """Put a command string in the queue."""
-        logging.debug("Sending: '%s' to dotstar controller", command.strip())
+        logging.debug("Sending: '%s' to dotstar driver", command.strip())
         self.command_queue.put(command)
 
     def _receive(self):
@@ -128,3 +128,20 @@ class DotstarController(AbstractController):
 #                                                end_color[2])
             self._transmit(command)
             return self._receive()
+
+    def shutdown_display(self, end_color=b"\x08\x00\x00"):
+        """Set the display color and terminate the driver process."""
+
+        command = "color {} {} {}\n".format(end_color[0],
+                                            end_color[1],
+                                            end_color[2])
+        self._transmit(command)
+        success = self._receive()
+        sleep(1)
+
+        self.command_queue.close()
+        driver.terminate()
+        sleep(1)
+        if driver.is_alive():
+            driver.kill()
+        return
