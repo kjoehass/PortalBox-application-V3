@@ -44,7 +44,7 @@ class DotstarController(AbstractController):
 
     def _transmit(self, command):
         """Put a command string in the queue."""
-        logging.debug("Sending: '%s' to dotstar driver", command.strip())
+        #logging.debug("Sending: '%s' to dotstar driver", command.strip())
         self.command_queue.put(command)
 
     def _receive(self):

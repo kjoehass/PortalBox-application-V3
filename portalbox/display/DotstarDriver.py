@@ -124,7 +124,7 @@ def process_command(command, led_strip):
     tokens = command.split()
     params = [int(token) for token in tokens[1:]]
 
-    logging.info("DRVR received command")
+    #logging.debug("DRVR received command")
 
     # get command part of string and determine if it is recognized
     if tokens[0] == "blink":
